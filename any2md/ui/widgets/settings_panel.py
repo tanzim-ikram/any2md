@@ -22,6 +22,11 @@ from PyQt6.QtWidgets import (
 )
 
 from any2md import __version__
+from any2md.platform.windows_context_menu import (
+    is_context_menu_registered,
+    register_context_menu,
+    unregister_context_menu,
+)
 from any2md.storage.settings import AppSettings
 
 
@@ -122,6 +127,14 @@ class SettingsPanel(QWidget):
         self._startup_check.stateChanged.connect(self._on_change)
         layout.addWidget(self._startup_check)
 
+        # Explorer right-click context menu
+        self._context_menu_check = QCheckBox("Add to Windows right-click menu")
+        self._context_menu_check.setToolTip(
+            "Show 'Convert with Any2MD' when right-clicking documents in File Explorer"
+        )
+        self._context_menu_check.stateChanged.connect(self._on_context_menu_toggled)
+        layout.addWidget(self._context_menu_check)
+
         # ── Conversion section ───────────────────────
         layout.addWidget(self._divider())
         layout.addWidget(self._section_label("CONVERSION"))
@@ -206,7 +219,16 @@ class SettingsPanel(QWidget):
 
         self._out_dir_edit.setText(s.default_output_dir)
         self._startup_check.setChecked(s.start_with_windows)
+        self._context_menu_check.setChecked(s.explorer_context_menu)
         self._images_check.setChecked(s.preserve_images)
+
+    def _on_context_menu_toggled(self) -> None:
+        enabled = self._context_menu_check.isChecked()
+        if enabled:
+            register_context_menu()
+        else:
+            unregister_context_menu()
+        self._on_change()
 
     def _on_change(self) -> None:
         s = AppSettings(
@@ -215,6 +237,7 @@ class SettingsPanel(QWidget):
             default_format=self._format_combo.currentData(),
             preserve_images=self._images_check.isChecked(),
             start_with_windows=self._startup_check.isChecked(),
+            explorer_context_menu=self._context_menu_check.isChecked(),
         )
         self._settings = s
         self.settings_changed.emit(s)

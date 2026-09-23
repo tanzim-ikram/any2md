@@ -29,6 +29,7 @@ from any2md.conversion.models import (
     ConversionProgress,
     ConversionRequest,
     ConversionResult,
+    OutputFormat,
 )
 from any2md.conversion.worker import BatchConversionWorker
 from any2md.storage.history import HistoryEntry, HistoryStore
@@ -395,6 +396,40 @@ class MainWindow(QMainWindow):
         apply_theme(QApplication.instance(), next_theme)
         self._update_header_icons()
         self._settings_panel.update_theme_selection(next_theme)
+
+    # ──────────────────────────────────────────────────
+    # CLI / Explorer Context Menu handling
+    # ──────────────────────────────────────────────────
+
+    def handle_cli_args(self, files: list[str], convert_to: Optional[str] = None) -> None:
+        """Handle files and conversion format passed via CLI / Explorer context menu."""
+        if not files:
+            return
+
+        valid_paths = [Path(f).resolve() for f in files if Path(f).exists()]
+        if not valid_paths:
+            return
+
+        self._file_list.add_files(valid_paths)
+        self._show_page(PAGE_FILES)
+
+        if convert_to:
+            format_map = {
+                "md": OutputFormat.MARKDOWN,
+                "markdown": OutputFormat.MARKDOWN,
+                "pdf": OutputFormat.PDF,
+                "docx": OutputFormat.DOCX,
+                "word": OutputFormat.DOCX,
+                "html": OutputFormat.HTML,
+            }
+            target_fmt = format_map.get(convert_to.lower())
+            if target_fmt:
+                idx = self._file_list._format_combo.findData(target_fmt)
+                if idx >= 0:
+                    self._file_list._format_combo.setCurrentIndex(idx)
+
+            # Trigger conversion immediately
+            self._file_list._on_convert()
 
     # ──────────────────────────────────────────────────
     # Window events

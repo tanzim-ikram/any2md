@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import argparse
 import sys
 
 from PyQt6.QtCore import Qt
@@ -21,6 +22,16 @@ def main() -> None:
             ctypes.windll.shell32.SetCurrentProcessExplicitAppUserModelID("any2md.desktop.app")
         except Exception:
             pass
+
+    # Parse CLI arguments (e.g. from Explorer right-click context menu or file associations)
+    parser = argparse.ArgumentParser(description="Any2MD document conversion.")
+    parser.add_argument(
+        "--convert-to",
+        choices=["md", "markdown", "pdf", "docx", "word", "html"],
+        help="Directly convert input file(s) to this target format and show result",
+    )
+    parser.add_argument("files", nargs="*", help="Files to open or convert")
+    args, unknown = parser.parse_known_args()
 
     # High-DPI support (works at 100% and 125% Windows scaling)
     QApplication.setHighDpiScaleFactorRoundingPolicy(
@@ -44,6 +55,10 @@ def main() -> None:
 
     window = MainWindow()
     window.show()
+
+    # Handle files passed via CLI or Windows Explorer context menu
+    if args.files:
+        window.handle_cli_args(args.files, args.convert_to)
 
     sys.exit(app.exec())
 

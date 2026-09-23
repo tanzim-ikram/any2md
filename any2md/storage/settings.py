@@ -20,6 +20,7 @@ class AppSettings:
     default_format: str = "markdown"
     preserve_images: bool = False
     start_with_windows: bool = False
+    explorer_context_menu: bool = False
     window_width: int = 900
     window_height: int = 640
 
@@ -37,6 +38,7 @@ class SettingsStore:
         s.default_format = self._qs.value("default_format", s.default_format, type=str)
         s.preserve_images = self._qs.value("preserve_images", s.preserve_images, type=bool)
         s.start_with_windows = self._qs.value("start_with_windows", s.start_with_windows, type=bool)
+        s.explorer_context_menu = self._qs.value("explorer_context_menu", s.explorer_context_menu, type=bool)
         s.window_width = self._qs.value("window_width", s.window_width, type=int)
         s.window_height = self._qs.value("window_height", s.window_height, type=int)
         return s
@@ -47,6 +49,7 @@ class SettingsStore:
         self._qs.setValue("default_format", settings.default_format)
         self._qs.setValue("preserve_images", settings.preserve_images)
         self._qs.setValue("start_with_windows", settings.start_with_windows)
+        self._qs.setValue("explorer_context_menu", settings.explorer_context_menu)
         self._qs.setValue("window_width", settings.window_width)
         self._qs.setValue("window_height", settings.window_height)
         self._qs.sync()

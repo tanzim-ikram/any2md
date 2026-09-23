@@ -187,17 +187,54 @@ class FromMarkdownConverter:
         output_path: Path,
         emit: Callable[[int, ConversionStatus, str], None],
     ) -> None:
-        from weasyprint import HTML, CSS
-
         emit(50, ConversionStatus.CONVERTING, "Rendering PDF…")
         html_body = self._md_to_html_str(markdown_text)
-        full_html = f"""<!DOCTYPE html>
+
+        # Attempt high-fidelity rendering via WeasyPrint first
+        try:
+            from weasyprint import HTML, CSS
+            full_html = f"""<!DOCTYPE html>
 <html lang="en">
 <head><meta charset="utf-8"><title>Document</title></head>
 <body>{html_body}</body>
 </html>"""
-        css = CSS(string=_MARKDOWN_CSS)
-        HTML(string=full_html).write_pdf(str(output_path), stylesheets=[css])
+            css = CSS(string=_MARKDOWN_CSS)
+            HTML(string=full_html).write_pdf(str(output_path), stylesheets=[css])
+            emit(90, ConversionStatus.CONVERTING, "Saving…")
+            return
+        except Exception:
+            pass
+
+        # Fallback to zero-dependency native Qt PDF engine
+        emit(60, ConversionStatus.CONVERTING, "Rendering PDF via native engine…")
+        from PyQt6.QtCore import QMarginsF
+        from PyQt6.QtGui import QPageLayout, QPageSize, QPdfWriter, QTextDocument
+
+        doc = QTextDocument()
+        styled_html = f"""<html>
+<head>
+<style>
+body {{ font-family: 'Segoe UI', Arial, sans-serif; font-size: 11pt; color: #1a1a18; }}
+h1 {{ font-size: 20pt; font-weight: bold; margin-top: 18pt; margin-bottom: 6pt; color: #111110; }}
+h2 {{ font-size: 15pt; font-weight: bold; margin-top: 14pt; margin-bottom: 4pt; color: #111110; }}
+h3 {{ font-size: 12pt; font-weight: bold; margin-top: 10pt; margin-bottom: 2pt; color: #111110; }}
+p {{ margin-bottom: 8pt; line-height: 1.5; }}
+pre {{ background-color: #f7f7f5; padding: 8pt; border: 1px solid #e4e4e0; font-family: Consolas, monospace; font-size: 9pt; }}
+code {{ font-family: Consolas, monospace; background-color: #f3f3f1; font-size: 9pt; }}
+table {{ border-collapse: collapse; width: 100%; margin-top: 10pt; margin-bottom: 10pt; }}
+th, td {{ border: 1px solid #d4d4d0; padding: 6pt 8pt; text-align: left; }}
+th {{ background-color: #f3f3f1; font-weight: bold; }}
+blockquote {{ border-left: 3px solid #2563eb; padding-left: 10pt; color: #71716c; margin-left: 0; }}
+</style>
+</head>
+<body>{html_body}</body>
+</html>"""
+        doc.setHtml(styled_html)
+
+        writer = QPdfWriter(str(output_path))
+        writer.setPageSize(QPageSize(QPageSize.PageSizeId.A4))
+        writer.setPageMargins(QMarginsF(20, 20, 20, 20), QPageLayout.Unit.Millimeter)
+        doc.print(writer)
         emit(90, ConversionStatus.CONVERTING, "Saving…")
 
     def _to_docx(

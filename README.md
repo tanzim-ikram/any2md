@@ -7,7 +7,7 @@ All conversions run 100% locally on your machine — your files never leave your
 ---
 
 ## Features
-
+    
 - **Document to Markdown**: Convert PDF, Word (.docx), Excel (.xlsx, .xls), PowerPoint (.pptx, .ppt), Plain Text (.txt), HTML (.html), and CSV (.csv) directly into clean Markdown powered by Microsoft MarkItDown.
 - **Markdown to Document**: Convert Markdown files (.md) into styled PDF (via WeasyPrint), formatted Word (.docx), or HTML.
 - **Direct Document-to-Document Conversion**: Automatically converts non-Markdown documents directly to Word (.docx), HTML, or PDF using an automated two-hop pipeline.
