@@ -1,0 +1,24 @@
+# Byte-compiled / optimized / DLL files
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Pytest / coverage
+.pytest_cache/
+.coverage
+htmlcov/
+
+# Environments
+.env
+.venv
+env/
+venv/
+ENV/
+
+# Temporary / Scratch files
+*.png.bak
+comboview.png
+popup_test.png
+top_*.png
+main_window_screen.png
+scratch/

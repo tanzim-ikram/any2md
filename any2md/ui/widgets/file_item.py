@@ -143,14 +143,14 @@ class FileItemWidget(QWidget):
         outer.addWidget(self._status_badge)
 
         # Remove button
-        remove_btn = QPushButton("×")
-        remove_btn.setFixedSize(28, 28)
-        remove_btn.setObjectName("linkButton")
-        remove_btn.setToolTip("Remove from list")
-        remove_btn.setCursor(Qt.CursorShape.PointingHandCursor)
-        remove_btn.clicked.connect(lambda: self.remove_requested.emit(self._request_id))
-        remove_btn.setStyleSheet("font-size: 16px; color: #a0a09a; border: none; background: transparent;")
-        outer.addWidget(remove_btn)
+        self._remove_btn = QPushButton("×")
+        self._remove_btn.setFixedSize(28, 28)
+        self._remove_btn.setObjectName("linkButton")
+        self._remove_btn.setToolTip("Remove from list")
+        self._remove_btn.setCursor(Qt.CursorShape.PointingHandCursor)
+        self._remove_btn.clicked.connect(lambda: self.remove_requested.emit(self._request_id))
+        self._remove_btn.setStyleSheet("font-size: 16px; color: #a0a09a; border: none; background: transparent;")
+        outer.addWidget(self._remove_btn)
 
     # ──────────────────────────────────────────────────
     # Status updates

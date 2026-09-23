@@ -57,19 +57,22 @@ class ResultItemWidget(QWidget):
         name_label.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Preferred)
         layout.addWidget(name_label)
 
+        self._open_btn: QPushButton | None = None
+        self._folder_btn: QPushButton | None = None
+
         if is_success:
             # Open button
-            open_btn = QPushButton("Open")
-            open_btn.setObjectName("linkButton")
-            open_btn.setFixedWidth(50)
-            open_btn.clicked.connect(self._open_file)
-            layout.addWidget(open_btn)
+            self._open_btn = QPushButton("Open")
+            self._open_btn.setObjectName("linkButton")
+            self._open_btn.setFixedWidth(50)
+            self._open_btn.clicked.connect(self._open_file)
+            layout.addWidget(self._open_btn)
 
             # Show in folder button
-            folder_btn = QPushButton("Show in Folder")
-            folder_btn.setObjectName("linkButton")
-            folder_btn.clicked.connect(self._show_in_folder)
-            layout.addWidget(folder_btn)
+            self._folder_btn = QPushButton("Show in Folder")
+            self._folder_btn.setObjectName("linkButton")
+            self._folder_btn.clicked.connect(self._show_in_folder)
+            layout.addWidget(self._folder_btn)
         else:
             err_label = QLabel(self._result.user_message.split("\n")[0])
             err_label.setObjectName("mutedLabel")
@@ -105,6 +108,7 @@ class ResultView(QWidget):
 
     def __init__(self, parent: QWidget | None = None) -> None:
         super().__init__(parent)
+        self._items: list[ResultItemWidget] = []
         self._build_ui()
 
     def _build_ui(self) -> None:
@@ -146,10 +150,10 @@ class ResultView(QWidget):
 
         # Actions
         btn_row = QHBoxLayout()
-        convert_more_btn = QPushButton("Convert More Files")
-        convert_more_btn.setObjectName("primaryButton")
-        convert_more_btn.clicked.connect(self.convert_more_requested.emit)
-        btn_row.addWidget(convert_more_btn)
+        self._convert_more_btn = QPushButton("Convert More Files")
+        self._convert_more_btn.setObjectName("primaryButton")
+        self._convert_more_btn.clicked.connect(self.convert_more_requested.emit)
+        btn_row.addWidget(self._convert_more_btn)
         btn_row.addStretch()
         root.addLayout(btn_row)
 
@@ -185,6 +189,8 @@ class ResultView(QWidget):
             self._sub_label.setText("")
 
         # Add result items
+        self._items = []
         for result in results:
             item = ResultItemWidget(result)
+            self._items.append(item)
             self._list_layout.insertWidget(self._list_layout.count() - 1, item)

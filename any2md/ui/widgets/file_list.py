@@ -66,6 +66,11 @@ class FileListWidget(QWidget):
         self._output_dir: Path | None = None
         self._build_ui()
 
+    @property
+    def file_count(self) -> int:
+        """Return the current number of files in the queue."""
+        return len(self._items)
+
     # ──────────────────────────────────────────────────
     # UI construction
     # ──────────────────────────────────────────────────
@@ -119,10 +124,10 @@ class FileListWidget(QWidget):
         opts_layout.addStretch()
 
         # Clear all link
-        clear_btn = QPushButton("Clear all")
-        clear_btn.setObjectName("linkButton")
-        clear_btn.clicked.connect(self._on_clear)
-        opts_layout.addWidget(clear_btn)
+        self._clear_btn = QPushButton("Clear all")
+        self._clear_btn.setObjectName("linkButton")
+        self._clear_btn.clicked.connect(self._on_clear)
+        opts_layout.addWidget(self._clear_btn)
 
         root.addWidget(opts)
 
