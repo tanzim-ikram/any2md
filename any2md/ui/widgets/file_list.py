@@ -92,6 +92,7 @@ class FileListWidget(QWidget):
         self._format_combo.setView(QListView())
         for display, fmt in _FORMAT_OPTIONS:
             self._format_combo.addItem(display, fmt)
+        self._format_combo.currentIndexChanged.connect(self._on_format_changed)
         opts_layout.addWidget(self._format_combo)
 
         sep1 = QFrame()
@@ -249,6 +250,11 @@ class FileListWidget(QWidget):
             item.deleteLater()
         self._paths.pop(request_id, None)
         self._update_count_label()
+
+    def _on_format_changed(self) -> None:
+        fmt = self._current_format()
+        for item in self._items.values():
+            item.set_output_format(fmt)
 
     def _on_clear(self) -> None:
         self.clear_all()

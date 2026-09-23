@@ -46,11 +46,79 @@ class TestEngineRouting:
         assert isinstance(result, ConversionError)
         assert result.error_code == "SAME_FORMAT"
 
-    def test_unsupported_route_pdf_to_docx_returns_error(self) -> None:
-        req = make_request("test.pdf", OutputFormat.DOCX)
+    def test_same_format_pdf_to_pdf_returns_error(self) -> None:
+        req = make_request("test.pdf", OutputFormat.PDF)
         result = self.engine.convert(req)
         assert isinstance(result, ConversionError)
-        assert result.error_code == "UNSUPPORTED_ROUTE"
+        assert result.error_code == "SAME_FORMAT"
+
+    @patch("any2md.conversion.from_markdown.FromMarkdownConverter.convert")
+    @patch("any2md.conversion.to_markdown.ToMarkdownConverter.convert")
+    def test_two_hop_pdf_to_docx_routes_through_pipeline(
+        self, mock_to_md, mock_from_md, tmp_path
+    ) -> None:
+        fake_md = tmp_path / "test.md"
+        fake_md.write_text("# Hello", encoding="utf-8")
+        mock_to_md.return_value = ConversionResult(
+            request=MagicMock(),
+            output_path=fake_md,
+            success=True,
+        )
+        fake_docx = tmp_path / "test.docx"
+        mock_from_md.return_value = ConversionResult(
+            request=MagicMock(),
+            output_path=fake_docx,
+            success=True,
+        )
+
+        req = make_request("test.pdf", OutputFormat.DOCX, output_dir=tmp_path)
+        result = self.engine.convert(req)
+        assert isinstance(result, ConversionResult)
+        assert result.success is True
+        mock_to_md.assert_called_once()
+        mock_from_md.assert_called_once()
+
+    @patch("any2md.conversion.to_markdown.ToMarkdownConverter.convert")
+    def test_two_hop_step1_failure_returns_error(self, mock_to_md, tmp_path) -> None:
+        mock_to_md.return_value = ConversionError(
+            request=MagicMock(),
+            user_message="Failed to read PDF",
+            detail="File corrupted",
+        )
+        req = make_request("test.pdf", OutputFormat.DOCX, output_dir=tmp_path)
+        result = self.engine.convert(req)
+        assert isinstance(result, ConversionError)
+        assert result.user_message == "Failed to read PDF"
+
+    @patch("any2md.conversion.from_markdown.FromMarkdownConverter.convert")
+    @patch("any2md.conversion.to_markdown.ToMarkdownConverter.convert")
+    def test_two_hop_progress_reporting(self, mock_to_md, mock_from_md, tmp_path) -> None:
+        def fake_to_md(req, cb=None):
+            if cb:
+                from any2md.conversion.models import ConversionProgress, ConversionStatus
+                cb(ConversionProgress(request_id="1", filename="test.pdf", percent=50, status=ConversionStatus.CONVERTING))
+            fake_md = tmp_path / "test.md"
+            fake_md.write_text("# Hello", encoding="utf-8")
+            return ConversionResult(request=req, output_path=fake_md, success=True)
+
+        def fake_from_md(req, cb=None):
+            if cb:
+                from any2md.conversion.models import ConversionProgress, ConversionStatus
+                cb(ConversionProgress(request_id="1", filename="test.pdf", percent=50, status=ConversionStatus.CONVERTING))
+            fake_docx = tmp_path / "test.docx"
+            return ConversionResult(request=req, output_path=fake_docx, success=True)
+
+        mock_to_md.side_effect = fake_to_md
+        mock_from_md.side_effect = fake_from_md
+
+        progress_reports = []
+        req = make_request("test.pdf", OutputFormat.DOCX, output_dir=tmp_path)
+        result = self.engine.convert(req, progress_callback=lambda p: progress_reports.append(p.percent))
+        assert isinstance(result, ConversionResult)
+        assert 0 in progress_reports
+        assert 25 in progress_reports  # step 1 50% -> scaled to 25%
+        assert 75 in progress_reports  # step 2 50% -> scaled to 75%
+        assert 100 in progress_reports
 
     def test_is_supported_pdf(self) -> None:
         assert ConversionEngine.is_supported(".pdf") is True

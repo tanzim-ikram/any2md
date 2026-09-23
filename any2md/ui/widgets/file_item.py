@@ -195,3 +195,10 @@ class FileItemWidget(QWidget):
         self._status_badge.setObjectName("badgeReady")
         self._status_badge.style().unpolish(self._status_badge)
         self._status_badge.style().polish(self._status_badge)
+
+    def set_output_format(self, output_format: OutputFormat) -> None:
+        """Update displayed target format."""
+        self._output_format = output_format
+        ext = self._path.suffix.lower()
+        size_str = _format_size(self._path.stat().st_size) if self._path.exists() else "—"
+        self._meta_label.setText(f"{size_str}  ·  {ext.upper().lstrip('.')} → {self._output_format.display_name}")

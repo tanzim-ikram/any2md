@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import re
 import traceback
 from pathlib import Path
 from typing import Callable, Optional
@@ -219,7 +220,12 @@ class FromMarkdownConverter:
         # Set default font
         style = doc.styles["Normal"]
         style.font.name = "Calibri"
-        style.font.size = Pt(11)
+        # Sanitize XML-incompatible control characters (e.g. form feeds \x0c from PDFs)
+        markdown_text = re.sub(
+            r"[\x00-\x08\x0b\x0c\x0e-\x1f\x7f-\x84\x86-\x9f]",
+            lambda m: "\n" if m.group() in "\x0b\x0c" else "",
+            markdown_text,
+        )
 
         # Parse markdown line by line (simple structural parser)
         lines = markdown_text.split("\n")
