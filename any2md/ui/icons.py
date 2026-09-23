@@ -1,5 +1,4 @@
-"""SVG icon rendering utility for Any2MD UI."""
-
+import sys
 from pathlib import Path
 
 from PyQt6.QtCore import QByteArray, QSize, Qt
@@ -11,10 +10,17 @@ from any2md.ui.style.theme import _is_system_dark
 
 def get_app_logo_path() -> Path:
     """Return the absolute path to the Any2MD logo image."""
-    candidates = [
+    candidates = []
+    if hasattr(sys, "_MEIPASS"):
+        meipass = Path(sys._MEIPASS)
+        candidates.extend([
+            meipass / "any2md" / "resources" / "logo.png",
+            meipass / "Any2MD Logo.png",
+        ])
+    candidates.extend([
         Path(__file__).resolve().parent.parent / "resources" / "logo.png",
         Path(__file__).resolve().parent.parent.parent / "Any2MD Logo.png",
-    ]
+    ])
     for c in candidates:
         if c.exists():
             return c

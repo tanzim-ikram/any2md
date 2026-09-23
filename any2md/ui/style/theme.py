@@ -1,14 +1,20 @@
 """Theme manager — detects system theme and applies QSS stylesheets."""
 
-from __future__ import annotations
-
+import sys
 from pathlib import Path
 
 from PyQt6.QtCore import QSettings
 from PyQt6.QtGui import QColor, QPalette
 from PyQt6.QtWidgets import QApplication
 
-_STYLE_DIR = Path(__file__).parent
+
+def _get_style_dir() -> Path:
+    """Return the directory containing QSS stylesheet files."""
+    if hasattr(sys, "_MEIPASS"):
+        candidate = Path(sys._MEIPASS) / "any2md" / "ui" / "style"
+        if candidate.exists():
+            return candidate
+    return Path(__file__).parent
 
 
 def _is_system_dark() -> bool:
@@ -67,7 +73,7 @@ def load_stylesheet(theme: str) -> str:
     """Return QSS content for the given theme ('light', 'dark', 'system')."""
     if theme == "system":
         theme = "dark" if _is_system_dark() else "light"
-    path = _STYLE_DIR / f"{theme}.qss"
+    path = _get_style_dir() / f"{theme}.qss"
     if path.exists():
         return path.read_text(encoding="utf-8")
     return ""

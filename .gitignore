@@ -21,4 +21,7 @@ comboview.png
 popup_test.png
 top_*.png
 main_window_screen.png
-scratch/
+# Build / Distribution
+build/
+dist/
+*.spec.bak

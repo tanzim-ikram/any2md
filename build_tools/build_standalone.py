@@ -31,17 +31,22 @@ def build() -> None:
         print("\nERROR: PyInstaller build failed!")
         sys.exit(result.returncode)
 
-    # 3. Verify output
-    dist_exe = ROOT_DIR / "dist" / "Any2MD" / "Any2MD.exe"
+    # 3. Clean up intermediate build workspace so no broken stubs remain
+    build_dir = ROOT_DIR / "build"
+    if build_dir.exists():
+        import shutil
+        shutil.rmtree(build_dir, ignore_errors=True)
+
+    # 4. Verify output single-file executable
+    dist_exe = ROOT_DIR / "dist" / "Any2MD.exe"
     if not dist_exe.exists():
         print(f"\nERROR: Expected output not found at {dist_exe}")
         sys.exit(1)
 
     size_mb = dist_exe.stat().st_size / (1024 * 1024)
     print(f"\n[3/3] Build succeeded!")
-    print(f"Output executable: {dist_exe} ({size_mb:.2f} MB)")
-    print(f"Standalone folder: {dist_exe.parent}")
-    print("\nYou can distribute the entire 'dist/Any2MD' directory or package it with Inno Setup.")
+    print(f"Portable Standalone Executable: {dist_exe} ({size_mb:.2f} MB)")
+    print("\nThis single .exe file is completely portable and can be run on any Windows 10/11 PC!")
 
 
 if __name__ == "__main__":
