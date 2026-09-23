@@ -122,6 +122,51 @@ class TestConversionEngineSmoke:
         assert res.output_path.exists()
         assert res.output_path.stat().st_size > 0
 
+    def test_docx_to_markdown_real(self, tmp_path: Path) -> None:
+        import docx
+
+        doc_file = tmp_path / "sample.docx"
+        doc = docx.Document()
+        doc.add_heading("Docx Heading", level=1)
+        doc.add_paragraph("This is a paragraph inside docx.")
+        doc.save(str(doc_file))
+
+        req = ConversionRequest(
+            input_path=doc_file,
+            output_format=OutputFormat.MARKDOWN,
+            output_dir=tmp_path,
+            options=ConversionOptions(),
+        )
+        res = self.engine.convert(req)
+        assert isinstance(res, ConversionResult)
+        assert res.output_path.exists()
+        content = res.output_path.read_text(encoding="utf-8")
+        assert "Docx Heading" in content
+        assert "paragraph inside docx" in content
+
+    def test_pdf_to_markdown_real(self, tmp_path: Path, qapp) -> None:
+        from PyQt6.QtGui import QPageSize, QPdfWriter, QTextDocument
+
+        pdf_file = tmp_path / "sample.pdf"
+        writer = QPdfWriter(str(pdf_file))
+        writer.setPageSize(QPageSize(QPageSize.PageSizeId.A4))
+        doc = QTextDocument()
+        doc.setPlainText("Hello PDF to Markdown Conversion!")
+        doc.print(writer)
+
+        req = ConversionRequest(
+            input_path=pdf_file,
+            output_format=OutputFormat.MARKDOWN,
+            output_dir=tmp_path,
+            options=ConversionOptions(),
+        )
+        res = self.engine.convert(req)
+        assert isinstance(res, ConversionResult)
+        assert res.output_path.exists()
+        content = res.output_path.read_text(encoding="utf-8")
+        assert "Hello PDF to Markdown" in content
+
+
     def test_two_hop_txt_to_docx_real(self, tmp_path: Path) -> None:
         txt_file = tmp_path / "notes.txt"
         txt_file.write_text("Meeting Notes\nDiscuss project deliverables.", encoding="utf-8")

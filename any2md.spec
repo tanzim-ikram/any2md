@@ -14,12 +14,7 @@ datas = [
     (str(project_root / 'Any2MD Logo.png'), '.'),
 ]
 
-# Collect markitdown data files if any
-try:
-    datas += collect_data_files('markitdown')
-except Exception:
-    pass
-
+# Collect data files and submodules for all converter dependencies
 hidden_imports = [
     'PyQt6.QtSvg',
     'PyQt6.QtCore',
@@ -32,17 +27,31 @@ hidden_imports = [
     'any2md.conversion.worker',
     'any2md.storage.settings',
     'any2md.storage.history',
-    'markitdown',
-    'markdown',
-    'docx',
 ]
 
-# Add optional submodules
-for mod in ['docx', 'markdown', 'markitdown']:
+converter_packages = [
+    'markitdown',
+    'mammoth',
+    'pdfminer',
+    'pdfplumber',
+    'pypdf',
+    'docx',
+    'pptx',
+    'openpyxl',
+    'bs4',
+    'markdown',
+]
+
+for pkg in converter_packages:
     try:
-        hidden_imports += collect_submodules(mod)
+        datas += collect_data_files(pkg)
     except Exception:
         pass
+    try:
+        hidden_imports += collect_submodules(pkg)
+    except Exception:
+        pass
+
 
 a = Analysis(
     ['any2md/main.py'],
