@@ -1,12 +1,46 @@
 """SVG icon rendering utility for Any2MD UI."""
 
-from __future__ import annotations
+from pathlib import Path
 
 from PyQt6.QtCore import QByteArray, QSize, Qt
 from PyQt6.QtGui import QIcon, QPainter, QPixmap
 from PyQt6.QtSvg import QSvgRenderer
 
 from any2md.ui.style.theme import _is_system_dark
+
+
+def get_app_logo_path() -> Path:
+    """Return the absolute path to the Any2MD logo image."""
+    candidates = [
+        Path(__file__).resolve().parent.parent / "resources" / "logo.png",
+        Path(__file__).resolve().parent.parent.parent / "Any2MD Logo.png",
+    ]
+    for c in candidates:
+        if c.exists():
+            return c
+    return candidates[0]
+
+
+def get_app_icon() -> QIcon:
+    """Return the application/window icon with multi-resolution pixmaps for crisp scaling."""
+    path = get_app_logo_path()
+    if not path.exists():
+        return QIcon()
+
+    base_pixmap = QPixmap(str(path))
+    if base_pixmap.isNull():
+        return QIcon()
+
+    icon = QIcon()
+    for size in (16, 20, 24, 32, 48, 64, 128, 256):
+        scaled = base_pixmap.scaled(
+            size,
+            size,
+            Qt.AspectRatioMode.KeepAspectRatio,
+            Qt.TransformationMode.SmoothTransformation,
+        )
+        icon.addPixmap(scaled)
+    return icon
 
 GEAR_SVG = """<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="{color}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
   <circle cx="12" cy="12" r="3"/>

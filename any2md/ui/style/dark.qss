@@ -21,6 +21,10 @@ QWidget {
     selection-color: #93c5fd;
 }
 
+QLabel {
+    background-color: transparent;
+}
+
 QMainWindow, QDialog {
     background-color: #111110;
 }
@@ -33,7 +37,9 @@ QMainWindow, QDialog {
     max-height: 48px;
 }
 
-#appTitle {
+#headerBar QLabel, #appTitle, #appLogo {
+    background-color: transparent;
+    background: transparent;
     font-size: 14px;
     font-weight: 600;
     color: #efefec;

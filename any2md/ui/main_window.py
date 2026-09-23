@@ -8,7 +8,7 @@ from pathlib import Path
 from typing import Optional
 
 from PyQt6.QtCore import Qt, QSize, pyqtSlot
-from PyQt6.QtGui import QAction, QKeySequence, QIcon
+from PyQt6.QtGui import QAction, QKeySequence, QIcon, QPixmap
 from PyQt6.QtWidgets import (
     QApplication,
     QHBoxLayout,
@@ -33,7 +33,12 @@ from any2md.conversion.models import (
 from any2md.conversion.worker import BatchConversionWorker
 from any2md.storage.history import HistoryEntry, HistoryStore
 from any2md.storage.settings import AppSettings, SettingsStore
-from any2md.ui.icons import get_settings_icon, get_theme_icon
+from any2md.ui.icons import (
+    get_app_icon,
+    get_app_logo_path,
+    get_settings_icon,
+    get_theme_icon,
+)
 from any2md.ui.style.theme import apply_theme
 from any2md.ui.widgets.drop_zone import DropZoneWidget
 from any2md.ui.widgets.file_list import FileListWidget
@@ -83,6 +88,11 @@ class MainWindow(QMainWindow):
 
         self._build_ui()
         self._setup_shortcuts()
+
+        # Set window icon / favicon
+        app_icon = get_app_icon()
+        if not app_icon.isNull():
+            self.setWindowIcon(app_icon)
 
     # ──────────────────────────────────────────────────
     # UI construction
@@ -151,6 +161,20 @@ class MainWindow(QMainWindow):
         layout = QHBoxLayout(header)
         layout.setContentsMargins(20, 0, 16, 0)
         layout.setSpacing(8)
+
+        # App logo + title
+        logo_path = get_app_logo_path()
+        if logo_path.exists():
+            logo_label = QLabel()
+            logo_label.setObjectName("appLogo")
+            pm = QPixmap(str(logo_path)).scaled(
+                24, 24,
+                Qt.AspectRatioMode.KeepAspectRatio,
+                Qt.TransformationMode.SmoothTransformation,
+            )
+            logo_label.setPixmap(pm)
+            logo_label.setFixedSize(24, 24)
+            layout.addWidget(logo_label)
 
         # App title
         title = QLabel("Any2MD")
