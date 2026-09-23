@@ -125,11 +125,11 @@ class MainWindow(QMainWindow):
         self._stack.addWidget(self._result_view)
 
         self._stack.setCurrentIndex(PAGE_DROP)
-        main_layout.addWidget(self._stack)
+        main_layout.addWidget(self._stack, 1)
 
         # Recent files
         self._recent_files = RecentFilesWidget(self._history)
-        main_layout.addWidget(self._recent_files)
+        main_layout.addWidget(self._recent_files, 0)
 
         # Footer
         footer = self._build_footer()
@@ -162,8 +162,9 @@ class MainWindow(QMainWindow):
         self._theme_btn = QToolButton()
         self._theme_btn.setText("◐")
         self._theme_btn.setToolTip("Toggle theme")
-        self._theme_btn.setFixedSize(32, 32)
-        self._theme_btn.setStyleSheet("font-size: 14px;")
+        self._theme_btn.setFixedSize(36, 36)
+        self._theme_btn.setStyleSheet("font-size: 20px; font-weight: bold;")
+        self._theme_btn.setCursor(Qt.CursorShape.PointingHandCursor)
         self._theme_btn.clicked.connect(self._cycle_theme)
         layout.addWidget(self._theme_btn)
 
@@ -171,8 +172,9 @@ class MainWindow(QMainWindow):
         settings_btn = QToolButton()
         settings_btn.setText("⚙")
         settings_btn.setToolTip("Settings  (Ctrl+,)")
-        settings_btn.setFixedSize(32, 32)
-        settings_btn.setStyleSheet("font-size: 14px;")
+        settings_btn.setFixedSize(36, 36)
+        settings_btn.setStyleSheet("font-size: 18px;")
+        settings_btn.setCursor(Qt.CursorShape.PointingHandCursor)
         settings_btn.clicked.connect(self._toggle_settings)
         layout.addWidget(settings_btn)
 
@@ -357,6 +359,7 @@ class MainWindow(QMainWindow):
         self._settings.theme = next_theme
         self._settings_store.save(self._settings)
         apply_theme(QApplication.instance(), next_theme)
+        self._settings_panel.update_theme_selection(next_theme)
 
     # ──────────────────────────────────────────────────
     # Window events

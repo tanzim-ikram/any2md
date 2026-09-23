@@ -13,6 +13,7 @@ from PyQt6.QtWidgets import (
     QHBoxLayout,
     QLabel,
     QLineEdit,
+    QListView,
     QPushButton,
     QScrollArea,
     QSizePolicy,
@@ -56,7 +57,7 @@ class SettingsPanel(QWidget):
 
         # ── Header ───────────────────────────────────
         header = QWidget()
-        header.setStyleSheet("border-bottom: 1px solid #2a2a28;")
+        header.setObjectName("settingsPanelHeader")
         h_layout = QHBoxLayout(header)
         h_layout.setContentsMargins(20, 14, 16, 14)
 
@@ -82,7 +83,7 @@ class SettingsPanel(QWidget):
         scroll.setStyleSheet("border: none;")
 
         content = QWidget()
-        content.setStyleSheet("background: transparent;")
+        content.setObjectName("settingsContent")
         layout = QVBoxLayout(content)
         layout.setContentsMargins(20, 20, 20, 20)
         layout.setSpacing(24)
@@ -94,6 +95,7 @@ class SettingsPanel(QWidget):
         # Theme
         theme_row = self._row_layout("Theme")
         self._theme_combo = QComboBox()
+        self._theme_combo.setView(QListView())
         self._theme_combo.addItem("System", "system")
         self._theme_combo.addItem("Light", "light")
         self._theme_combo.addItem("Dark", "dark")
@@ -104,13 +106,13 @@ class SettingsPanel(QWidget):
         # Default output dir
         layout.addWidget(self._section_row_label("Default output folder"))
         dir_row = QHBoxLayout()
-        dir_row.setSpacing(8)
+        dir_row.setSpacing(10)
         self._out_dir_edit = QLineEdit()
         self._out_dir_edit.setPlaceholderText("Same as source file")
         self._out_dir_edit.setReadOnly(True)
         dir_row.addWidget(self._out_dir_edit)
         browse_btn = QPushButton("Browse")
-        browse_btn.setFixedWidth(70)
+        browse_btn.setFixedWidth(82)
         browse_btn.clicked.connect(self._pick_dir)
         dir_row.addWidget(browse_btn)
         layout.addLayout(dir_row)
@@ -127,6 +129,7 @@ class SettingsPanel(QWidget):
         # Default format
         fmt_row = self._row_layout("Default output format")
         self._format_combo = QComboBox()
+        self._format_combo.setView(QListView())
         self._format_combo.addItem("Markdown", "markdown")
         self._format_combo.addItem("PDF", "pdf")
         self._format_combo.addItem("Word (.docx)", "docx")
@@ -218,3 +221,12 @@ class SettingsPanel(QWidget):
 
     def get_settings(self) -> AppSettings:
         return self._settings
+
+    def update_theme_selection(self, theme: str) -> None:
+        """Sync combobox when theme is changed outside of the settings panel."""
+        idx = self._theme_combo.findData(theme)
+        if idx >= 0 and idx != self._theme_combo.currentIndex():
+            self._theme_combo.blockSignals(True)
+            self._theme_combo.setCurrentIndex(idx)
+            self._theme_combo.blockSignals(False)
+            self._settings.theme = theme

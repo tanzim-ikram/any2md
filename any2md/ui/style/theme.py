@@ -5,6 +5,7 @@ from __future__ import annotations
 from pathlib import Path
 
 from PyQt6.QtCore import QSettings
+from PyQt6.QtGui import QColor, QPalette
 from PyQt6.QtWidgets import QApplication
 
 _STYLE_DIR = Path(__file__).parent
@@ -24,6 +25,44 @@ def _is_system_dark() -> bool:
         return False
 
 
+def _build_light_palette() -> QPalette:
+    """Build a complete light QPalette to prevent dark system theme leaking into popups."""
+    p = QPalette()
+    p.setColor(QPalette.ColorRole.Window, QColor("#f7f7f5"))
+    p.setColor(QPalette.ColorRole.WindowText, QColor("#1a1a18"))
+    p.setColor(QPalette.ColorRole.Base, QColor("#ffffff"))
+    p.setColor(QPalette.ColorRole.AlternateBase, QColor("#f3f3f1"))
+    p.setColor(QPalette.ColorRole.ToolTipBase, QColor("#1a1a18"))
+    p.setColor(QPalette.ColorRole.ToolTipText, QColor("#ffffff"))
+    p.setColor(QPalette.ColorRole.Text, QColor("#1a1a18"))
+    p.setColor(QPalette.ColorRole.Button, QColor("#ffffff"))
+    p.setColor(QPalette.ColorRole.ButtonText, QColor("#1a1a18"))
+    p.setColor(QPalette.ColorRole.BrightText, QColor("#ffffff"))
+    p.setColor(QPalette.ColorRole.Highlight, QColor("#dbeafe"))
+    p.setColor(QPalette.ColorRole.HighlightedText, QColor("#1d4ed8"))
+    p.setColor(QPalette.ColorRole.PlaceholderText, QColor("#a0a09a"))
+    return p
+
+
+def _build_dark_palette() -> QPalette:
+    """Build a complete dark QPalette."""
+    p = QPalette()
+    p.setColor(QPalette.ColorRole.Window, QColor("#111110"))
+    p.setColor(QPalette.ColorRole.WindowText, QColor("#efefec"))
+    p.setColor(QPalette.ColorRole.Base, QColor("#1c1c1a"))
+    p.setColor(QPalette.ColorRole.AlternateBase, QColor("#222220"))
+    p.setColor(QPalette.ColorRole.ToolTipBase, QColor("#2a2a28"))
+    p.setColor(QPalette.ColorRole.ToolTipText, QColor("#efefec"))
+    p.setColor(QPalette.ColorRole.Text, QColor("#efefec"))
+    p.setColor(QPalette.ColorRole.Button, QColor("#1c1c1a"))
+    p.setColor(QPalette.ColorRole.ButtonText, QColor("#efefec"))
+    p.setColor(QPalette.ColorRole.BrightText, QColor("#ffffff"))
+    p.setColor(QPalette.ColorRole.Highlight, QColor("#1e3a5f"))
+    p.setColor(QPalette.ColorRole.HighlightedText, QColor("#93c5fd"))
+    p.setColor(QPalette.ColorRole.PlaceholderText, QColor("#63635e"))
+    return p
+
+
 def load_stylesheet(theme: str) -> str:
     """Return QSS content for the given theme ('light', 'dark', 'system')."""
     if theme == "system":
@@ -35,10 +74,15 @@ def load_stylesheet(theme: str) -> str:
 
 
 def apply_theme(app: QApplication, theme: str) -> str:
-    """Apply the QSS theme to the QApplication. Returns the resolved theme name."""
+    """Apply the QSS theme and matching QPalette to the QApplication. Returns the resolved theme name."""
     resolved = theme
     if theme == "system":
         resolved = "dark" if _is_system_dark() else "light"
+
+    # Set matching palette to prevent native popups/menus from using mismatched OS palette
+    palette = _build_dark_palette() if resolved == "dark" else _build_light_palette()
+    app.setPalette(palette)
+
     qss = load_stylesheet(resolved)
     app.setStyleSheet(qss)
     return resolved

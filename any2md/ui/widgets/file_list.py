@@ -14,6 +14,7 @@ from PyQt6.QtWidgets import (
     QHBoxLayout,
     QLabel,
     QLineEdit,
+    QListView,
     QPushButton,
     QScrollArea,
     QSizePolicy,
@@ -79,7 +80,7 @@ class FileListWidget(QWidget):
         opts.setObjectName("surfacePanel")
         opts.setStyleSheet("#surfacePanel { border-radius: 0; border-left: none; border-right: none; border-top: none; }")
         opts_layout = QHBoxLayout(opts)
-        opts_layout.setContentsMargins(16, 10, 16, 10)
+        opts_layout.setContentsMargins(18, 12, 18, 12)
         opts_layout.setSpacing(12)
 
         # Format selector
@@ -88,6 +89,7 @@ class FileListWidget(QWidget):
         opts_layout.addWidget(fmt_label)
 
         self._format_combo = QComboBox()
+        self._format_combo.setView(QListView())
         for display, fmt in _FORMAT_OPTIONS:
             self._format_combo.addItem(display, fmt)
         opts_layout.addWidget(self._format_combo)
@@ -105,11 +107,11 @@ class FileListWidget(QWidget):
 
         self._out_dir_edit = QLineEdit("Same as source")
         self._out_dir_edit.setReadOnly(True)
-        self._out_dir_edit.setFixedWidth(180)
+        self._out_dir_edit.setFixedWidth(190)
         opts_layout.addWidget(self._out_dir_edit)
 
         change_btn = QPushButton("Change")
-        change_btn.setFixedWidth(70)
+        change_btn.setFixedWidth(82)
         change_btn.clicked.connect(self._pick_output_dir)
         opts_layout.addWidget(change_btn)
 
@@ -146,7 +148,7 @@ class FileListWidget(QWidget):
             "#surfacePanel { border-radius: 0; border-left: none; border-right: none; border-bottom: none; }"
         )
         action_layout = QHBoxLayout(action_bar)
-        action_layout.setContentsMargins(16, 12, 16, 12)
+        action_layout.setContentsMargins(18, 14, 18, 14)
         action_layout.setSpacing(10)
 
         add_more_btn = QPushButton("Add More Files")
@@ -161,7 +163,7 @@ class FileListWidget(QWidget):
 
         self._convert_btn = QPushButton("Convert")
         self._convert_btn.setObjectName("primaryButton")
-        self._convert_btn.setFixedWidth(110)
+        self._convert_btn.setFixedWidth(120)
         self._convert_btn.setCursor(Qt.CursorShape.PointingHandCursor)
         self._convert_btn.clicked.connect(self._on_convert)
         action_layout.addWidget(self._convert_btn)

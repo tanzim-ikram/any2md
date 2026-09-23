@@ -86,11 +86,12 @@ QMainWindow, QDialog {
 QPushButton {
     background-color: #1c1c1a;
     color: #efefec;
-    border: 1px solid #3a3a38;
-    border-radius: 4px;
-    padding: 7px 16px;
+    border: 1px solid #363632;
+    border-radius: 6px;
+    padding: 8px 18px;
     font-size: 13px;
     font-weight: 500;
+    min-height: 18px;
     outline: none;
 }
 
@@ -105,12 +106,14 @@ QPushButton:pressed {
 
 QPushButton:focus {
     border-color: #3b82f6;
+    outline: none;
 }
 
 QPushButton#primaryButton {
     background-color: #efefec;
     color: #111110;
     border: 1px solid #efefec;
+    padding: 8px 22px;
 }
 
 QPushButton#primaryButton:hover {
@@ -132,6 +135,8 @@ QPushButton#dangerButton {
     background-color: transparent;
     color: #ef4444;
     border: 1px solid #7f1d1d;
+    border-radius: 6px;
+    padding: 8px 18px;
 }
 
 QPushButton#dangerButton:hover {
@@ -142,7 +147,7 @@ QPushButton#linkButton {
     background-color: transparent;
     border: none;
     color: #3b82f6;
-    padding: 4px 0;
+    padding: 4px 6px;
 }
 
 QPushButton#linkButton:hover {
@@ -153,8 +158,8 @@ QToolButton {
     background-color: transparent;
     border: none;
     color: #a0a09a;
-    border-radius: 4px;
-    padding: 6px;
+    border-radius: 6px;
+    padding: 6px 8px;
 }
 
 QToolButton:hover {
@@ -290,9 +295,9 @@ QScrollBar::sub-line:horizontal {
 /* ── ComboBox ─────────────────────────────────────── */
 QComboBox {
     background-color: #1c1c1a;
-    border: 1px solid #3a3a38;
-    border-radius: 4px;
-    padding: 6px 10px;
+    border: 1px solid #363632;
+    border-radius: 6px;
+    padding: 8px 12px;
     font-size: 13px;
     color: #efefec;
     min-width: 140px;
@@ -308,7 +313,7 @@ QComboBox:focus {
 
 QComboBox::drop-down {
     border: none;
-    width: 24px;
+    width: 28px;
 }
 
 QComboBox::down-arrow {
@@ -318,28 +323,45 @@ QComboBox::down-arrow {
     border-top: 5px solid #a0a09a;
 }
 
-QComboBox QAbstractItemView {
+QComboBox QAbstractItemView,
+QComboBox QListView {
     background-color: #1c1c1a;
-    border: 1px solid #3a3a38;
-    border-radius: 4px;
+    color: #efefec;
+    border: 1px solid #363632;
+    border-radius: 6px;
     selection-background-color: #1e3a5f;
     selection-color: #93c5fd;
     outline: none;
     padding: 4px;
 }
 
-QComboBox QAbstractItemView::item {
-    padding: 6px 10px;
-    border-radius: 3px;
+QComboBox QAbstractItemView::item,
+QComboBox QListView::item {
+    background-color: #1c1c1a;
     color: #efefec;
+    padding: 8px 12px;
+    border-radius: 4px;
+    min-height: 20px;
+}
+
+QComboBox QAbstractItemView::item:hover,
+QComboBox QListView::item:hover {
+    background-color: #262624;
+    color: #ffffff;
+}
+
+QComboBox QAbstractItemView::item:selected,
+QComboBox QListView::item:selected {
+    background-color: #1e3a5f;
+    color: #93c5fd;
 }
 
 /* ── LineEdit ─────────────────────────────────────── */
 QLineEdit {
     background-color: #1c1c1a;
-    border: 1px solid #3a3a38;
-    border-radius: 4px;
-    padding: 6px 10px;
+    border: 1px solid #363632;
+    border-radius: 6px;
+    padding: 8px 12px;
     font-size: 13px;
     color: #efefec;
 }
@@ -418,10 +440,56 @@ QCheckBox::indicator:hover {
     max-width: 320px;
 }
 
+#settingsPanelHeader {
+    border-bottom: 1px solid #2a2a28;
+}
+
+#settingsContent {
+    background: transparent;
+}
+
 #settingsPanelTitle {
     font-size: 14px;
     font-weight: 600;
     color: #efefec;
+}
+
+/* ── Context Menu / Popup Menu ────────────────────── */
+QMenu {
+    background-color: #1c1c1a;
+    color: #efefec;
+    border: 1px solid #363632;
+    border-radius: 6px;
+    padding: 4px;
+}
+
+QMenu::item {
+    background-color: transparent;
+    color: #efefec;
+    padding: 6px 24px 6px 12px;
+    border-radius: 4px;
+    font-size: 13px;
+}
+
+QMenu::item:selected {
+    background-color: #2a2a28;
+    color: #ffffff;
+}
+
+QMenu::item:disabled {
+    color: #63635e;
+}
+
+QMenu::separator {
+    height: 1px;
+    background-color: #2a2a28;
+    margin: 4px 6px;
+}
+
+/* ── Recent files widget ─────────────────────────── */
+#recentHeader {
+    background: transparent;
+    border-bottom: 1px solid #2a2a28;
 }
 
 /* ── Recent files table ───────────────────────────── */

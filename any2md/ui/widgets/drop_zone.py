@@ -86,7 +86,7 @@ class DropZoneWidget(QWidget):
         btn_row = QHBoxLayout()
         btn_row.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self._select_btn = QPushButton("Select Files")
-        self._select_btn.setFixedWidth(140)
+        self._select_btn.setFixedWidth(150)
         self._select_btn.setCursor(Qt.CursorShape.PointingHandCursor)
         self._select_btn.clicked.connect(self._open_file_dialog)
         btn_row.addWidget(self._select_btn)

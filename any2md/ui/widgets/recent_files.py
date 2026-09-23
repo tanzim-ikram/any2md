@@ -36,6 +36,7 @@ class RecentFilesWidget(QWidget):
         self, history: HistoryStore, parent: QWidget | None = None
     ) -> None:
         super().__init__(parent)
+        self.setSizePolicy(QSizePolicy.Policy.Preferred, QSizePolicy.Policy.Maximum)
         self._history = history
         self._expanded = True
         self._build_ui()
@@ -45,30 +46,32 @@ class RecentFilesWidget(QWidget):
         root = QVBoxLayout(self)
         root.setContentsMargins(0, 0, 0, 0)
         root.setSpacing(0)
+        root.setAlignment(Qt.AlignmentFlag.AlignTop)
 
         # Header row
         header = QWidget()
-        header.setStyleSheet(
-            "background: transparent; border-bottom: 1px solid #e4e4e0;"
-        )
+        header.setObjectName("recentHeader")
+        header.setFixedHeight(36)
         header_layout = QHBoxLayout(header)
-        header_layout.setContentsMargins(16, 8, 16, 8)
+        header_layout.setContentsMargins(16, 0, 16, 0)
         header_layout.setSpacing(8)
 
-        self._toggle_btn = QPushButton("Recent ›")
+        self._toggle_btn = QPushButton("Recent ∨" if self._expanded else "Recent ›")
         self._toggle_btn.setObjectName("linkButton")
         self._toggle_btn.setStyleSheet(
             "font-size: 12px; font-weight: 600; color: #71716c; border: none; background: transparent; padding: 0;"
         )
+        self._toggle_btn.setCursor(Qt.CursorShape.PointingHandCursor)
         self._toggle_btn.clicked.connect(self._toggle_expand)
         header_layout.addWidget(self._toggle_btn)
         header_layout.addStretch()
 
-        clear_btn = QPushButton("Clear history")
-        clear_btn.setObjectName("linkButton")
-        clear_btn.setStyleSheet("font-size: 11px; color: #a0a09a; border: none; background: transparent; padding: 0;")
-        clear_btn.clicked.connect(self._clear_history)
-        header_layout.addWidget(clear_btn)
+        self._clear_btn = QPushButton("Clear history")
+        self._clear_btn.setObjectName("linkButton")
+        self._clear_btn.setStyleSheet("font-size: 11px; color: #a0a09a; border: none; background: transparent; padding: 0;")
+        self._clear_btn.setCursor(Qt.CursorShape.PointingHandCursor)
+        self._clear_btn.clicked.connect(self._clear_history)
+        header_layout.addWidget(self._clear_btn)
 
         root.addWidget(header)
 
@@ -91,6 +94,27 @@ class RecentFilesWidget(QWidget):
         hh.setSectionResizeMode(3, QHeaderView.ResizeMode.ResizeToContents)
 
         root.addWidget(self._table)
+
+    def _update_table_height(self) -> None:
+        """Size table and widget snugly to contents, eliminating any empty gap."""
+        header_h = 36
+        if not self._expanded:
+            self._table.setFixedHeight(0)
+            self.setFixedHeight(header_h)
+            return
+        rows = self._table.rowCount()
+        if rows == 0:
+            self._table.setFixedHeight(0)
+            self.setFixedHeight(header_h)
+            self._clear_btn.setEnabled(False)
+            return
+        self._clear_btn.setEnabled(True)
+        h = self._table.horizontalHeader().height() + 4
+        for i in range(rows):
+            h += self._table.rowHeight(i)
+        table_h = min(180, max(56, h))
+        self._table.setFixedHeight(table_h)
+        self.setFixedHeight(header_h + table_h)
 
     def refresh(self) -> None:
         """Reload history from store and repopulate table."""
@@ -120,14 +144,18 @@ class RecentFilesWidget(QWidget):
             )
             self._table.setItem(row, 3, status_item)
 
+        self._update_table_height()
+
     def _toggle_expand(self) -> None:
         self._expanded = not self._expanded
         self._table.setVisible(self._expanded)
-        self._toggle_btn.setText("Recent ›" if not self._expanded else "Recent ∨")
+        self._toggle_btn.setText("Recent ∨" if self._expanded else "Recent ›")
+        self._update_table_height()
 
     def _clear_history(self) -> None:
         self._history.clear()
         self._table.setRowCount(0)
+        self._update_table_height()
         self.history_cleared.emit()
 
     def _show_context_menu(self, pos) -> None:
@@ -161,3 +189,4 @@ class RecentFilesWidget(QWidget):
     def _remove_entry(self, entry_id: str, row: int) -> None:
         self._history.remove(entry_id)
         self._table.removeRow(row)
+        self._update_table_height()
