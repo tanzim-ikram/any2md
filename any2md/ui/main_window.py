@@ -33,6 +33,7 @@ from any2md.conversion.models import (
 from any2md.conversion.worker import BatchConversionWorker
 from any2md.storage.history import HistoryEntry, HistoryStore
 from any2md.storage.settings import AppSettings, SettingsStore
+from any2md.ui.icons import get_settings_icon, get_theme_icon
 from any2md.ui.style.theme import apply_theme
 from any2md.ui.widgets.drop_zone import DropZoneWidget
 from any2md.ui.widgets.file_list import FileListWidget
@@ -160,23 +161,25 @@ class MainWindow(QMainWindow):
 
         # Theme toggle button
         self._theme_btn = QToolButton()
-        self._theme_btn.setText("◐")
+        self._theme_btn.setObjectName("headerThemeBtn")
         self._theme_btn.setToolTip("Toggle theme")
         self._theme_btn.setFixedSize(36, 36)
-        self._theme_btn.setStyleSheet("font-size: 20px; font-weight: bold;")
+        self._theme_btn.setIconSize(QSize(20, 20))
+        self._theme_btn.setIcon(get_theme_icon(self._settings.theme))
         self._theme_btn.setCursor(Qt.CursorShape.PointingHandCursor)
         self._theme_btn.clicked.connect(self._cycle_theme)
         layout.addWidget(self._theme_btn)
 
         # Settings button
-        settings_btn = QToolButton()
-        settings_btn.setText("⚙")
-        settings_btn.setToolTip("Settings  (Ctrl+,)")
-        settings_btn.setFixedSize(36, 36)
-        settings_btn.setStyleSheet("font-size: 18px;")
-        settings_btn.setCursor(Qt.CursorShape.PointingHandCursor)
-        settings_btn.clicked.connect(self._toggle_settings)
-        layout.addWidget(settings_btn)
+        self._settings_btn = QToolButton()
+        self._settings_btn.setObjectName("headerSettingsBtn")
+        self._settings_btn.setToolTip("Settings  (Ctrl+,)")
+        self._settings_btn.setFixedSize(36, 36)
+        self._settings_btn.setIconSize(QSize(20, 20))
+        self._settings_btn.setIcon(get_settings_icon(self._settings.theme))
+        self._settings_btn.setCursor(Qt.CursorShape.PointingHandCursor)
+        self._settings_btn.clicked.connect(self._toggle_settings)
+        layout.addWidget(self._settings_btn)
 
         return header
 
@@ -345,12 +348,19 @@ class MainWindow(QMainWindow):
         visible = self._settings_panel.isVisible()
         self._settings_panel.setVisible(not visible)
 
+    def _update_header_icons(self) -> None:
+        """Update header buttons with theme-matching icons."""
+        theme = self._settings.theme
+        self._theme_btn.setIcon(get_theme_icon(theme))
+        self._settings_btn.setIcon(get_settings_icon(theme))
+
     @pyqtSlot(object)
     def _on_settings_changed(self, settings: AppSettings) -> None:
         self._settings = settings
         self._settings_store.save(settings)
         # Re-apply theme
         apply_theme(QApplication.instance(), settings.theme)
+        self._update_header_icons()
 
     def _cycle_theme(self) -> None:
         themes = ["light", "dark", "system"]
@@ -359,6 +369,7 @@ class MainWindow(QMainWindow):
         self._settings.theme = next_theme
         self._settings_store.save(self._settings)
         apply_theme(QApplication.instance(), next_theme)
+        self._update_header_icons()
         self._settings_panel.update_theme_selection(next_theme)
 
     # ──────────────────────────────────────────────────

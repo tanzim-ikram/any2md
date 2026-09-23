@@ -40,6 +40,20 @@ QMainWindow, QDialog {
     letter-spacing: -0.2px;
 }
 
+#headerBar QToolButton {
+    padding: 0px;
+    border-radius: 6px;
+    background-color: transparent;
+}
+
+#headerBar QToolButton:hover {
+    background-color: #2a2a28;
+}
+
+#headerBar QToolButton:pressed {
+    background-color: #333330;
+}
+
 /* ── Surface panels ───────────────────────────────── */
 #surfacePanel {
     background-color: #1c1c1a;
