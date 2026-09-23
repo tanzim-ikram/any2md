@@ -1,0 +1,23 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.backends.legacy:build"
+
+[project]
+name = "any2md"
+version = "0.1.0"
+description = "Any2MD — Local document conversion to and from Markdown"
+requires-python = ">=3.10"
+dependencies = [
+    "PyQt6>=6.6.0",
+    "markitdown[all]>=0.1.0",
+    "weasyprint>=60.0",
+    "python-docx>=1.1.0",
+    "markdown>=3.5.0",
+]
+
+[project.scripts]
+any2md = "any2md.main:main"
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["any2md*"]
