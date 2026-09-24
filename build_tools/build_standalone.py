@@ -16,6 +16,7 @@ def build() -> None:
     ico_path = ROOT_DIR / "Any2MD Logo.ico"
     if not ico_path.exists():
         print("[1/3] Generating multi-resolution Windows ICO...")
+        # pyrefly: ignore [missing-import]
         from make_ico import generate_ico
         generate_ico()
     else:
