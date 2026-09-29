@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import re
 import traceback
 from pathlib import Path
 from typing import Callable, Optional
@@ -15,6 +16,24 @@ from .models import (
     ConversionStatus,
     OutputFormat,
 )
+
+
+# Style map fed to mammoth (via MarkItDown) so DOCX heading/quote styles that
+# mammoth doesn't recognize by default survive into Markdown.
+_DOCX_STYLE_MAP = "\n".join(
+    [
+        "p[style-name='Title'] => h1:fresh",
+        "p[style-name='Subtitle'] => h2:fresh",
+        "p[style-name='Quote'] => blockquote > p:fresh",
+        "p[style-name='Intense Quote'] => blockquote > p:fresh",
+    ]
+)
+
+# Matches a Markdown table header row made up only of empty cells, e.g. "|  |  |".
+_EMPTY_HEADER_ROW_RE = re.compile(r"^\|(?:\s*\|)+\s*$", re.MULTILINE)
+
+# Matches an image reference embedded as a base64 data URI.
+_DATA_URI_IMAGE_RE = re.compile(r"!\[[^\]]*\]\(data:image/[^)]*\)\n?")
 
 
 class ToMarkdownConverter:
@@ -63,22 +82,40 @@ class ToMarkdownConverter:
 
             markdown_content: str = ""
             engine_error: Optional[Exception] = None
+            ext = request.input_extension
+            preserve_images = request.options.preserve_images
 
-            try:
-                engine = self._get_engine()
-                emit(30, ConversionStatus.CONVERTING, "Converting…")
-                result = engine.convert(str(request.input_path))
-                markdown_content = result.text_content or ""
-            except Exception as exc:
-                engine_error = exc
+            # PDFs get a dedicated structure-aware converter (headings, bold/
+            # italic, tables) instead of MarkItDown's plain text dump.
+            if ext == ".pdf":
+                try:
+                    emit(30, ConversionStatus.CONVERTING, "Converting…")
+                    markdown_content = self._pdf_convert(request.input_path, preserve_images)
+                except Exception as exc:
+                    engine_error = exc
 
-            # If primary engine returned empty or failed, invoke resilient format-specific fallback
+            if not markdown_content.strip():
+                try:
+                    engine = self._get_engine()
+                    emit(30, ConversionStatus.CONVERTING, "Converting…")
+                    engine_kwargs = {}
+                    if ext == ".docx":
+                        engine_kwargs["style_map"] = _DOCX_STYLE_MAP
+                        engine_kwargs["keep_data_uris"] = preserve_images
+                    result = engine.convert(str(request.input_path), **engine_kwargs)
+                    markdown_content = result.text_content or ""
+                except Exception as exc:
+                    engine_error = engine_error or exc
+
+            # If every engine returned empty or failed, invoke resilient format-specific fallback
             if not markdown_content.strip():
                 fallback_text = self._fallback_convert(request.input_path)
                 if fallback_text:
                     markdown_content = fallback_text
                 elif engine_error:
                     raise engine_error
+
+            markdown_content = self._postprocess_markdown(markdown_content, preserve_images)
 
             emit(80, ConversionStatus.CONVERTING, "Writing output…")
 
@@ -104,6 +141,47 @@ class ToMarkdownConverter:
                 user_message=self._friendly_message(exc, request.input_path),
                 detail=traceback.format_exc(),
             )
+
+    @staticmethod
+    def _pdf_convert(path: Path, preserve_images: bool) -> str:
+        """Structure-aware PDF -> Markdown (headings, emphasis, tables)."""
+        from .pdf_markdown import pdf_to_markdown
+
+        return pdf_to_markdown(path, preserve_images=preserve_images)
+
+    @staticmethod
+    def _postprocess_markdown(text: str, preserve_images: bool) -> str:
+        """Clean up common MarkItDown artifacts shared across formats."""
+        if not text:
+            return text
+
+        if not preserve_images:
+            text = _DATA_URI_IMAGE_RE.sub("", text)
+
+        # Fix DOCX tables where mammoth/markdownify emits an empty header row
+        # (e.g. "|  |  |") followed by the real header as the first data row.
+        lines = text.split("\n")
+        fixed_lines: list[str] = []
+        i = 0
+        while i < len(lines):
+            line = lines[i]
+            if (
+                _EMPTY_HEADER_ROW_RE.match(line)
+                and i + 1 < len(lines)
+                and re.match(r"^\|(?:\s*-{2,}\s*\|)+\s*$", lines[i + 1])
+                and i + 2 < len(lines)
+                and lines[i + 2].strip().startswith("|")
+            ):
+                fixed_lines.append(lines[i + 2])
+                fixed_lines.append(lines[i + 1])
+                i += 3
+                continue
+            fixed_lines.append(line)
+            i += 1
+        text = "\n".join(fixed_lines)
+
+        text = re.sub(r"\n{3,}", "\n\n", text)
+        return text.strip() + "\n"
 
     def _fallback_convert(self, path: Path) -> Optional[str]:
         """Resilient fallback converter when the primary engine is unavailable or fails."""

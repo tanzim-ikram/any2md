@@ -113,11 +113,22 @@ class ConversionEngine:
             temp_dir_path = Path(temp_dir)
 
             # Step 1: Source Document -> Intermediate Markdown
+            # The Markdown -> DOCX writer (step 2) has no support for
+            # data-URI images and would dump the raw base64 text into the
+            # document, so images are dropped for that target only.
+            step1_options = request.options
+            if request.output_format == OutputFormat.DOCX and step1_options.preserve_images:
+                step1_options = ConversionOptions(
+                    preserve_images=False,
+                    combine_files=step1_options.combine_files,
+                    custom_output_name=step1_options.custom_output_name,
+                )
+
             step1_req = ConversionRequest(
                 input_path=request.input_path,
                 output_format=OutputFormat.MARKDOWN,
                 output_dir=temp_dir_path,
-                options=request.options,
+                options=step1_options,
                 request_id=request.request_id,
             )
             step1_res = self._to_md.convert(step1_req, step1_progress)

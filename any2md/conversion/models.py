@@ -60,7 +60,7 @@ SUPPORTED_INPUT_FORMATS: dict[str, str] = {
 
 @dataclass
 class ConversionOptions:
-    preserve_images: bool = False
+    preserve_images: bool = True
     combine_files: bool = False
     custom_output_name: Optional[str] = None
 

@@ -18,7 +18,7 @@ class AppSettings:
     theme: str = "system"          # "system" | "light" | "dark"
     default_output_dir: str = ""   # "" = same as source
     default_format: str = "markdown"
-    preserve_images: bool = False
+    preserve_images: bool = True
     start_with_windows: bool = False
     explorer_context_menu: bool = False
     window_width: int = 900
