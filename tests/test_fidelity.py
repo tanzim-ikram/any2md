@@ -179,3 +179,62 @@ class TestTwoHopImageSafety:
         doc = docx.Document(str(res.output_path))
         full_text = "\n".join(p.text for p in doc.paragraphs)
         assert "base64" not in full_text
+
+
+# ── Markdown / DOCX → DOCX / PDF formatting and image regressions ──
+
+_PNG_B64 = (
+    "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg=="
+)
+
+
+def _convert(src, fmt, out):
+    from any2md.conversion.engine import ConversionEngine
+    from any2md.conversion.models import ConversionRequest, ConversionResult
+
+    res = ConversionEngine().convert(ConversionRequest(input_path=src, output_format=fmt, output_dir=out))
+    assert isinstance(res, ConversionResult), getattr(res, "detail", res)
+    return res.output_path
+
+
+def test_markdown_to_docx_formatting_and_images(tmp_path):
+    import docx
+    from any2md.conversion.models import OutputFormat
+
+    md = tmp_path / "doc.md"
+    md.write_text(
+        "# Title\n\nPara **bold** and [link](https://example.com).\nNext line.\n\n"
+        "- a\n  - nested\n- b\n\n1. one\n2. two\n\n"
+        "```\ncode\n```\n\n| H1 | H2 |\n|----|----|\n| x | **y** |\n\n"
+        f"![pic](data:image/png;base64,{_PNG_B64})\n",
+        encoding="utf-8",
+    )
+    d = docx.Document(_convert(md, OutputFormat.DOCX, tmp_path))
+    styles = [p.style.name for p in d.paragraphs]
+    assert "Heading 1" in styles and "List Bullet 2" in styles
+    assert len(d.inline_shapes) == 1
+    assert len(d.tables) == 1 and d.tables[0].rows[1].cells[1].text == "y"
+    assert "**" not in "".join(p.text for p in d.paragraphs)
+    assert not any("data:image" in p.text or "base64" in p.text for p in d.paragraphs)
+
+
+def test_docx_to_docx_and_pdf_keep_images(tmp_path):
+    import docx
+    from docx.shared import Inches
+    from any2md.conversion.models import OutputFormat
+
+    png = tmp_path / "p.png"
+    import base64
+    png.write_bytes(base64.b64decode(_PNG_B64))
+    src = tmp_path / "src.docx"
+    d = docx.Document()
+    d.add_paragraph("before")
+    d.add_picture(str(png), width=Inches(1))
+    d.save(str(src))
+
+    out = tmp_path / "out"
+    pdf = _convert(src, OutputFormat.PDF, out)
+    assert b"/Subtype /Image" in pdf.read_bytes() or b"/Subtype/Image" in pdf.read_bytes()
+
+    md = _convert(src, OutputFormat.MARKDOWN, out)
+    assert "data:image/png;base64" in md.read_text(encoding="utf-8")
