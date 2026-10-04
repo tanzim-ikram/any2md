@@ -62,7 +62,21 @@ a = Analysis(
     hookspath=[],
     hooksconfig={},
     runtime_hooks=[],
-    excludes=['tkinter', 'matplotlib', 'numpy.distutils', 'scipy', 'IPython'],
+    excludes=[
+        # UI toolkits we don't use
+        'tkinter',
+        # Heavy scientific stack — not needed
+        'matplotlib', 'numpy.distutils', 'scipy', 'IPython',
+        # WeasyPrint requires GTK/Pango/GLib native DLLs which are not present
+        # on this machine and are not bundled. PDF rendering falls back to the
+        # built-in Qt engine (see from_markdown.py _to_pdf).
+        'weasyprint',
+        'cffi', 'cairocffi', 'cairosvg',
+        # pydub is pulled in by markitdown[all] for audio conversion. This app
+        # does not convert audio files, so pydub (and its ffmpeg dependency) is
+        # completely unused. Excluding it removes the ffmpeg RuntimeWarning.
+        'pydub',
+    ],
     win_no_prefer_redirects=False,
     win_private_assemblies=False,
     cipher=block_cipher,
