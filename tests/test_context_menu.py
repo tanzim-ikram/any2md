@@ -1,6 +1,8 @@
 """Unit tests for Windows Explorer Context Menu integration."""
 
-import winreg
+import pytest
+
+winreg = pytest.importorskip("winreg")
 from pathlib import Path
 from any2md.platform.windows_context_menu import (
     EXTENSION_TARGETS,

@@ -146,6 +146,10 @@ class RecentFilesWidget(QWidget):
 
         self._update_table_height()
 
+    def set_expanded(self, expanded: bool) -> None:
+        if expanded != self._expanded:
+            self._toggle_expand()
+
     def _toggle_expand(self) -> None:
         self._expanded = not self._expanded
         self._table.setVisible(self._expanded)

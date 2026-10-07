@@ -32,9 +32,20 @@ from any2md.conversion.worker import BatchConversionWorker
 from any2md.storage.history import HistoryEntry, HistoryStore
 from any2md.storage.settings import AppSettings, SettingsStore
 from any2md.ui.icons import get_app_icon, get_app_logo_path, get_settings_icon, get_theme_icon
-from any2md.ui.main_window import MainWindow, PAGE_DROP, PAGE_FILES, PAGE_RESULT
+from any2md.ui.main_window import MainWindow, PAGE_DROP, PAGE_FILES
 from any2md.ui.style.theme import apply_theme, load_stylesheet
-from any2md.ui.widgets.file_item import FileItemWidget
+from any2md.ui.widgets.file_item import FileItemWidget, ItemState
+
+
+def wait_for_batch(win: MainWindow, timeout_ms: int = 60000) -> None:
+    """Block until the window's conversion worker(s) finish and their signals are delivered."""
+    import time
+
+    deadline = time.monotonic() + timeout_ms / 1000
+    while win._worker is not None and time.monotonic() < deadline:
+        win._worker.wait(50)
+        QApplication.instance().processEvents()
+    assert win._worker is None, "conversion did not finish in time"
 
 
 @pytest.fixture(scope="session")
@@ -329,25 +340,36 @@ class TestMainWindowSmoke:
         file_list._format_combo.setCurrentIndex(1)  # pdf
         for item in file_list._items.values():
             assert item._output_format == OutputFormat.PDF
-            assert item._output_format.display_name in item._meta_label.text()
+            assert item._route_text() in item._meta_label.text()
 
         file_list._format_combo.setCurrentIndex(2)  # docx
         for item in file_list._items.values():
             assert item._output_format == OutputFormat.DOCX
-            assert item._output_format.display_name in item._meta_label.text()
+            assert item._route_text() in item._meta_label.text()
 
         file_list._format_combo.setCurrentIndex(0)  # md
         for item in file_list._items.values():
             assert item._output_format == OutputFormat.MARKDOWN
-            assert item._output_format.display_name in item._meta_label.text()
+            assert item._route_text() in item._meta_label.text()
 
         # Output folder controls
-        assert file_list._out_dir_edit.text() == "Same as source"
+        assert file_list._out_dir_btn.text() == "Same folder as source"
+        assert file_list._output_dir is None
+        assert not file_list._reset_dir_btn.isVisibleTo(file_list)
+
+        file_list.set_output_dir(tmp_path)
+        assert file_list._output_dir == tmp_path
+        assert file_list._out_dir_btn.toolTip() == str(tmp_path)
+        assert file_list._reset_dir_btn.isVisibleTo(file_list)
+        file_list._reset_dir_btn.click()
         assert file_list._output_dir is None
 
-        file_list._output_dir = tmp_path
-        file_list._out_dir_edit.setText(str(tmp_path))
-        assert file_list._output_dir == tmp_path
+        # Dropping the same file again doesn't duplicate it
+        self.win._on_files_dropped([f1])
+        assert file_list.file_count == 2
+
+        # Convert button reflects how many files are ready
+        assert file_list._convert_btn.text() == "Convert 2 files"
 
         # Remove single item via item's remove button
         req_ids = list(file_list._items.keys())
@@ -361,37 +383,69 @@ class TestMainWindowSmoke:
         assert file_list.file_count == 0
 
     def test_end_to_end_ui_conversion_and_results(self, tmp_path: Path) -> None:
-        """Run a full UI-driven batch conversion and verify results view."""
-        sample_file = tmp_path / "readme.txt"
-        sample_file.write_text("Integration smoke test content.", encoding="utf-8")
+        """Run a UI-driven batch; every row shows its own result in place."""
+        good = tmp_path / "readme.txt"
+        good.write_text("Integration smoke test content.", encoding="utf-8")
+        bad = tmp_path / "blocked.txt"
+        bad.write_text("Output path is taken by a folder.", encoding="utf-8")
+        (tmp_path / "blocked.md").mkdir()  # writing the result must fail
 
-        self.win._on_files_dropped([sample_file])
+        self.win._on_files_dropped([good, bad])
         assert self.win._stack.currentIndex() == PAGE_FILES
 
-        # Click convert
         self.win._file_list._convert_btn.click()
         assert self.win._worker is not None
+        assert self.win._file_list._cancel_btn.isVisibleTo(self.win._file_list)
+        wait_for_batch(self.win)
 
-        # Wait synchronously for background conversion worker to complete
-        assert self.win._worker.wait(5000)
+        # Results stay on the same page, one row per file
+        assert self.win._stack.currentIndex() == PAGE_FILES
+        file_list = self.win._file_list
+        rows = {item.path.name: item for item in file_list.items()}
+        ok, failed = rows["readme.txt"], rows["blocked.txt"]
 
-        # Process Qt events so finished signals reach MainWindow slots
-        QApplication.instance().processEvents()
+        assert ok.state == ItemState.DONE
+        assert ok.result is not None and ok.result.output_path.exists()
+        assert ok._open_btn.isVisibleTo(ok) and ok._folder_btn.isVisibleTo(ok)
+        assert "readme.md" in ok._meta_label.text()
 
-        # Should switch to PAGE_RESULT
-        assert self.win._stack.currentIndex() == PAGE_RESULT
-        result_view = self.win._result_view
-        assert len(result_view._items) == 1
+        assert failed.state == ItemState.ERROR
+        assert failed.error is not None
+        assert failed._details_btn.isVisibleTo(failed)
 
-        # Check result item buttons
-        result_item = result_view._items[0]
-        assert result_item._open_btn is not None
-        assert result_item._folder_btn is not None
+        # Batch summary + follow-up actions
+        assert not file_list._cancel_btn.isVisibleTo(file_list)
+        assert "1 file converted" in file_list._status_label.text()
+        assert "1 failed" in file_list._status_label.text()
+        assert file_list._retry_btn.isVisibleTo(file_list)
 
-        # Convert more button resets back to PAGE_DROP
-        result_view._convert_more_btn.click()
+        file_list._clear_done_btn.click()
+        assert [i.path.name for i in file_list.items()] == ["blocked.txt"]
+
+        file_list._clear_btn.click()
         assert self.win._stack.currentIndex() == PAGE_DROP
-        assert self.win._file_list.file_count == 0
+        assert file_list.file_count == 0
+
+    def test_files_added_mid_batch_join_running_queue(self, tmp_path: Path) -> None:
+        """Files arriving while converting (e.g. more Explorer launches) join the batch."""
+        files = []
+        for i in range(3):
+            f = tmp_path / f"part{i}.txt"
+            f.write_text(f"Part {i}", encoding="utf-8")
+            files.append(f)
+
+        self.win.handle_external_request([str(files[0])], "md")
+        worker = self.win._worker
+        assert worker is not None
+        self.win.handle_external_request([str(files[1]), str(files[2])], "md")
+        assert self.win._worker is worker  # same run, not a new window/worker
+        wait_for_batch(self.win)
+
+        file_list = self.win._file_list
+        assert file_list.file_count == 3
+        assert all(item.state == ItemState.DONE for item in file_list.items())
+        assert all((tmp_path / f"part{i}.md").exists() for i in range(3))
+        assert "3 files converted" in file_list._status_label.text()
 
     def test_recent_files_widget(self, tmp_path: Path) -> None:
         """Verify recent files table displays entries and can be cleared."""
@@ -435,6 +489,9 @@ class TestMainWindowSmoke:
         # Esc closes settings
         esc_action.trigger()
         assert not self.win._settings_panel.isVisible()
+
+        names = {a.text() for a in self.win.actions()}
+        assert {"Open files", "Convert"} <= names
 
 
 # ════════════════════════════════════════════════════════════════════

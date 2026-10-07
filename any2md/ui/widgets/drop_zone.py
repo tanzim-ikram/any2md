@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import os
 from pathlib import Path
-from typing import Callable
+from typing import Iterable
 
 from PyQt6.QtCore import Qt, pyqtSignal
 from PyQt6.QtGui import QDragEnterEvent, QDropEvent
@@ -24,6 +24,37 @@ from any2md.conversion.models import SUPPORTED_INPUT_FORMATS
 _ACCEPT_EXTENSIONS = set(SUPPORTED_INPUT_FORMATS.keys()) | {".md"}
 
 _FORMAT_CHIPS = "PDF · DOCX · XLSX · PPTX · TXT · HTML · CSV · MD"
+
+# Guard against someone dropping their whole drive.
+_MAX_FOLDER_FILES = 500
+
+
+def collect_supported_files(paths: Iterable[Path]) -> list[Path]:
+    """Return the supported files among `paths`, expanding folders (recursively)."""
+    found: list[Path] = []
+    seen: set[str] = set()
+
+    def add(p: Path) -> None:
+        key = str(p).lower()
+        if key not in seen:
+            seen.add(key)
+            found.append(p)
+
+    for path in paths:
+        try:
+            if path.is_dir():
+                count = 0
+                for child in sorted(path.rglob("*")):
+                    if child.is_file() and child.suffix.lower() in _ACCEPT_EXTENSIONS:
+                        add(child)
+                        count += 1
+                        if count >= _MAX_FOLDER_FILES:
+                            break
+            elif path.is_file() and path.suffix.lower() in _ACCEPT_EXTENSIONS:
+                add(path)
+        except OSError:
+            continue
+    return found
 
 _ICON_SVG = """<svg width="36" height="36" viewBox="0 0 24 24" fill="none"
     xmlns="http://www.w3.org/2000/svg">
@@ -48,6 +79,8 @@ class DropZoneWidget(QWidget):
     def __init__(self, parent: QWidget | None = None) -> None:
         super().__init__(parent)
         self.setObjectName("dropZone")
+        # Without this a QWidget subclass ignores its QSS border/background.
+        self.setAttribute(Qt.WidgetAttribute.WA_StyledBackground, True)
         self.setAcceptDrops(True)
         self.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
         self._build_ui()
@@ -77,7 +110,7 @@ class DropZoneWidget(QWidget):
         layout.addWidget(title)
 
         # Subtitle
-        subtitle = QLabel("or choose from your computer")
+        subtitle = QLabel("Files or whole folders — or choose from your computer")
         subtitle.setObjectName("dropZoneSubtitle")
         subtitle.setAlignment(Qt.AlignmentFlag.AlignCenter)
         layout.addWidget(subtitle)
@@ -104,8 +137,8 @@ class DropZoneWidget(QWidget):
 
     def dragEnterEvent(self, event: QDragEnterEvent) -> None:
         if event.mimeData().hasUrls():
-            paths = [Path(u.toLocalFile()) for u in event.mimeData().urls()]
-            if any(p.suffix.lower() in _ACCEPT_EXTENSIONS for p in paths):
+            paths = [Path(u.toLocalFile()) for u in event.mimeData().urls() if u.isLocalFile()]
+            if any(p.is_dir() or p.suffix.lower() in _ACCEPT_EXTENSIONS for p in paths):
                 event.acceptProposedAction()
                 self.setProperty("dragActive", "true")
                 self.style().unpolish(self)
@@ -123,11 +156,9 @@ class DropZoneWidget(QWidget):
         self.style().unpolish(self)
         self.style().polish(self)
 
-        paths = [
-            Path(u.toLocalFile())
-            for u in event.mimeData().urls()
-            if Path(u.toLocalFile()).suffix.lower() in _ACCEPT_EXTENSIONS
-        ]
+        paths = collect_supported_files(
+            Path(u.toLocalFile()) for u in event.mimeData().urls() if u.isLocalFile()
+        )
         if paths:
             event.acceptProposedAction()
             self.files_dropped.emit(paths)

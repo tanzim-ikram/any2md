@@ -570,3 +570,100 @@ QMessageBox QLabel {
     color: #efefec;
     font-size: 13px;
 }
+
+/* ── Queue page ───────────────────────────────────── */
+#toolbarPanel, #actionBar {
+    background-color: #1c1c1a;
+    border: none;
+}
+
+#toolbarPanel {
+    border-bottom: 1px solid #2a2a28;
+}
+
+#actionBar {
+    border-top: 1px solid #2a2a28;
+}
+
+#listContainer {
+    background: transparent;
+}
+
+#statusStrip {
+    background-color: #0f1d3a;
+    border-bottom: 1px solid #172554;
+}
+
+#statusStrip[tone="success"] {
+    background-color: #06200f;
+    border-bottom: 1px solid #052e16;
+}
+
+#statusStrip[tone="warning"] {
+    background-color: #241a05;
+    border-bottom: 1px solid #3a2a06;
+}
+
+#statusStrip[tone="error"] {
+    background-color: #1f0909;
+    border-bottom: 1px solid #3b0d0d;
+}
+
+#statusLabel {
+    font-size: 13px;
+    font-weight: 600;
+    color: #efefec;
+}
+
+#statusStrip QPushButton#dangerButton {
+    padding: 4px 14px;
+    background-color: #1c1c1a;
+}
+
+#fileItem {
+    border-radius: 8px;
+}
+
+#fileItemMeta[tone="success"] {
+    color: #4ade80;
+}
+
+#fileItemMeta[tone="error"] {
+    color: #f87171;
+}
+
+QPushButton#rowActionButton {
+    background-color: transparent;
+    border: 1px solid #363632;
+    border-radius: 5px;
+    color: #efefec;
+    padding: 3px 10px;
+    min-height: 16px;
+    font-size: 12px;
+}
+
+QPushButton#rowActionButton:hover {
+    background-color: #2a2a28;
+    border-color: #4a4a48;
+}
+
+QPushButton#removeButton {
+    background: transparent;
+    border: none;
+    border-radius: 14px;
+    color: #71716c;
+    font-size: 16px;
+    padding: 0px;
+    min-height: 0px;
+}
+
+QPushButton#removeButton:hover {
+    background-color: #2a2a28;
+    color: #f87171;
+}
+
+QPushButton#folderPickerButton {
+    padding: 5px 12px;
+    text-align: left;
+    font-weight: 400;
+}

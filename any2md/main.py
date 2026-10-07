@@ -3,15 +3,13 @@
 from __future__ import annotations
 
 import argparse
+import os
 import sys
 
 from PyQt6.QtCore import Qt
 from PyQt6.QtWidgets import QApplication
 
-from any2md.ui.icons import get_app_icon
-from any2md.ui.main_window import MainWindow
-from any2md.ui.style.theme import apply_theme
-from any2md.storage.settings import SettingsStore
+from any2md.platform.single_instance import SingleInstance
 
 
 def main() -> None:
@@ -43,6 +41,21 @@ def main() -> None:
     app.setOrganizationName("Any2MD")
     app.setApplicationVersion("0.1.0")
 
+    # Explorer launches one process per selected file. Only the first becomes
+    # the window; the rest hand their files over and exit immediately.
+    files = [os.path.abspath(f) for f in args.files]
+    instance = SingleInstance()
+    if not instance.try_become_primary():
+        if instance.send_to_primary({"files": files, "convert_to": args.convert_to}):
+            sys.exit(0)
+        # Primary is unresponsive: fall back to a standalone window.
+
+    # Heavy UI imports happen only in the process that actually shows a window.
+    from any2md.storage.settings import SettingsStore
+    from any2md.ui.icons import get_app_icon
+    from any2md.ui.main_window import MainWindow
+    from any2md.ui.style.theme import apply_theme
+
     # Set favicon / window icon for taskbar and titlebar
     app_icon = get_app_icon()
     if not app_icon.isNull():
@@ -56,11 +69,17 @@ def main() -> None:
     window = MainWindow()
     window.show()
 
-    # Handle files passed via CLI or Windows Explorer context menu
-    if args.files:
-        window.handle_cli_args(args.files, args.convert_to)
+    instance.message_received.connect(
+        lambda msg: window.handle_external_request(msg.get("files") or [], msg.get("convert_to"))
+    )
 
-    sys.exit(app.exec())
+    # Handle files passed via CLI or Windows Explorer context menu
+    if files:
+        window.handle_cli_args(files, args.convert_to)
+
+    code = app.exec()
+    instance.close()
+    sys.exit(code)
 
 
 if __name__ == "__main__":

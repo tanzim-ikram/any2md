@@ -106,10 +106,10 @@ Unlike web-based converters, **all processing runs 100% locally on your machine*
 
 ### 1. Graphical Interface (GUI)
 
-- **Add Files**: Drag and drop any supported document(s) onto the drop zone or press <kbd>Ctrl</kbd> + <kbd>O</kbd>.
-- **Select Formats**: Choose a target output format for individual files using their dropdown, or use the global action bar to convert all files at once.
-- **Convert**: Click **Convert** on an item or **Convert All** for the entire batch.
-- **Access Output**: Once complete, click **Open** to launch the converted file in your default viewer, or click the folder icon to reveal it in Windows Explorer.
+- **Add Files**: Drag and drop files or whole folders anywhere on the window, or press <kbd>Ctrl</kbd> + <kbd>O</kbd>. Files can be added while a conversion is running.
+- **Select Format & Folder**: Pick the target format in **Convert to** and, optionally, a **Save to** folder (default: next to each source file).
+- **Convert**: Click **Convert N files** (or press <kbd>Ctrl</kbd> + <kbd>Enter</kbd>). Every file is a row with its own live progress; a status strip shows the overall progress with a **Cancel** button.
+- **Access Output**: Finished rows offer **Open** and **Show in folder** (or double-click the row). Failed rows show the reason and a **Details** button; **Retry failed**, **Clear finished** and **Open folder** appear once the batch completes.
 - **Settings**: Press <kbd>Ctrl</kbd> + <kbd>,</kbd> or click the gear icon to customize themes, default output directories, image preservation, and context menu integration.
 
 ### 2. Windows Explorer Right-Click Integration
@@ -119,6 +119,7 @@ You can integrate Any2MD directly into your Windows right-click menu:
 1. Open Any2MD and press <kbd>Ctrl</kbd> + <kbd>,</kbd> to open **Settings**.
 2. Toggle **Windows Explorer Context Menu** to **ON**.
 3. Now, right-click any supported file in File Explorer to see the cascading **Convert with Any2MD** menu with format options tailored to that specific file.
+   Selecting several files converts all of them in a single Any2MD window, one row per file — Any2MD runs as a single instance, so further launches hand their files to the window that is already open.
 4. *To remove*: Simply toggle the setting back to **OFF** at any time.
 
 ### 3. Command Line Interface (CLI)
@@ -126,7 +127,7 @@ You can integrate Any2MD directly into your Windows right-click menu:
 Any2MD supports headless and quick-launch CLI arguments for scripted conversions and automation:
 
 ```powershell
-# Convert a PDF directly to Markdown and open result view
+# Convert a PDF directly to Markdown (joins the open window if Any2MD is already running)
 python -m any2md.main path\to\document.pdf --convert-to md
 
 # Convert Markdown directly to a styled PDF
@@ -146,8 +147,9 @@ python -m any2md.main report.docx presentation.pptx data.xlsx
 | Shortcut | Action |
 | :--- | :--- |
 | <kbd>Ctrl</kbd> + <kbd>O</kbd> | Open Windows File Dialog to select documents |
+| <kbd>Ctrl</kbd> + <kbd>Enter</kbd> | Convert the files that are ready |
 | <kbd>Ctrl</kbd> + <kbd>,</kbd> | Open / Close Settings drawer |
-| <kbd>Esc</kbd> | Close Settings / Cancel active batch conversion / Clear completed queue |
+| <kbd>Esc</kbd> | Close Settings / Cancel active batch (after the current file) / Clear the queue |
 
 ---
 
@@ -226,6 +228,7 @@ any2md/
     │   ├── from_markdown.py  # Markdown -> PDF/DOCX/HTML logic
     │   └── worker.py         # QThread asynchronous batch worker
     ├── platform/             # Windows OS specific integrations
+    │   ├── single_instance.py      # Routes extra launches into the running window
     │   └── windows_context_menu.py # HKCU Explorer context menu registry logic
     ├── storage/              # Persistence layer
     │   ├── settings.py       # QSettings Windows registry configuration

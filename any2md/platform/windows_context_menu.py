@@ -13,11 +13,15 @@ Requires zero administrator privileges.
 from __future__ import annotations
 
 import sys
-import winreg
 from pathlib import Path
 from typing import Dict, List, Optional, Tuple
 
 from any2md.ui.icons import get_app_logo_path
+
+try:
+    import winreg
+except ImportError:  # non-Windows: the menu helpers become harmless no-ops
+    winreg = None  # type: ignore[assignment]
 
 # Target conversion options per extension: (format_code, display_label)
 EXTENSION_TARGETS: Dict[str, List[Tuple[str, str]]] = {
@@ -117,6 +121,8 @@ def _delete_key_recursive(hkey: int, subkey: str) -> None:
 
 def is_context_menu_registered() -> bool:
     """Check if Any2MD context menu is currently registered in HKCU."""
+    if winreg is None:
+        return False
     try:
         test_key = r"Software\Classes\SystemFileAssociations\.pdf\shell\Any2MD"
         with winreg.OpenKey(winreg.HKEY_CURRENT_USER, test_key, 0, winreg.KEY_READ):
@@ -132,6 +138,8 @@ def register_context_menu(
     custom_icon_path: Optional[str] = None,
 ) -> bool:
     """Register cascading 'Convert with Any2MD' context menu for all supported extensions."""
+    if winreg is None:
+        return False
     exe_prefix, icon_path = _get_executable_and_icon()
     if custom_exe_path:
         exe_prefix = custom_exe_path
@@ -146,6 +154,8 @@ def register_context_menu(
             with winreg.CreateKey(winreg.HKEY_CURRENT_USER, base_key_path) as base_key:
                 winreg.SetValueEx(base_key, "MUIVerb", 0, winreg.REG_SZ, "Convert with Any2MD")
                 winreg.SetValueEx(base_key, "SubCommands", 0, winreg.REG_SZ, "")
+                # Default "Document" model hides the verb above 15 selected files.
+                winreg.SetValueEx(base_key, "MultiSelectModel", 0, winreg.REG_SZ, "Player")
                 if icon_path:
                     winreg.SetValueEx(base_key, "Icon", 0, winreg.REG_SZ, icon_path)
 
@@ -156,6 +166,7 @@ def register_context_menu(
                 sub_item_path = f"{shell_sub_path}\\to_{fmt_code}"
                 with winreg.CreateKey(winreg.HKEY_CURRENT_USER, sub_item_path) as sub_key:
                     winreg.SetValueEx(sub_key, "MUIVerb", 0, winreg.REG_SZ, fmt_label)
+                    winreg.SetValueEx(sub_key, "MultiSelectModel", 0, winreg.REG_SZ, "Player")
 
                 cmd_path = f"{sub_item_path}\\command"
                 cmd_str = _build_command_str(exe_prefix, fmt_code)
@@ -166,6 +177,7 @@ def register_context_menu(
             open_item_path = f"{shell_sub_path}\\open_gui"
             with winreg.CreateKey(winreg.HKEY_CURRENT_USER, open_item_path) as open_key:
                 winreg.SetValueEx(open_key, "MUIVerb", 0, winreg.REG_SZ, "Open in Any2MD...")
+                winreg.SetValueEx(open_key, "MultiSelectModel", 0, winreg.REG_SZ, "Player")
 
             open_cmd_path = f"{open_item_path}\\command"
             open_cmd_str = _build_command_str(exe_prefix, None)
@@ -180,6 +192,8 @@ def register_context_menu(
 
 def unregister_context_menu() -> bool:
     """Remove Any2MD context menu from all supported extensions."""
+    if winreg is None:
+        return False
     try:
         for ext in EXTENSION_TARGETS.keys():
             base_key_path = f"Software\\Classes\\SystemFileAssociations\\{ext}\\shell\\Any2MD"
