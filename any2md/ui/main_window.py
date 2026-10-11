@@ -5,19 +5,16 @@ from __future__ import annotations
 import datetime
 import uuid
 from pathlib import Path
-from typing import Optional
+from typing import Iterable, Optional
 
 from PyQt6.QtCore import Qt, QSize, pyqtSlot
-from PyQt6.QtGui import QAction, QKeySequence, QIcon, QPixmap
+from PyQt6.QtGui import QAction, QDragEnterEvent, QDropEvent, QKeySequence, QPixmap
 from PyQt6.QtWidgets import (
     QApplication,
     QHBoxLayout,
     QLabel,
     QMainWindow,
-    QPushButton,
-    QSizePolicy,
     QStackedWidget,
-    QStatusBar,
     QToolButton,
     QVBoxLayout,
     QWidget,
@@ -41,17 +38,24 @@ from any2md.ui.icons import (
     get_theme_icon,
 )
 from any2md.ui.style.theme import apply_theme
-from any2md.ui.widgets.drop_zone import DropZoneWidget
+from any2md.ui.widgets.drop_zone import DropZoneWidget, collect_supported_files
 from any2md.ui.widgets.file_list import FileListWidget
 from any2md.ui.widgets.recent_files import RecentFilesWidget
-from any2md.ui.widgets.result_view import ResultView
 from any2md.ui.widgets.settings_panel import SettingsPanel
-from any2md.ui.dialogs.error_dialog import ErrorDialog
 
 # Page indices in the stacked widget
 PAGE_DROP = 0
 PAGE_FILES = 1
-PAGE_RESULT = 2
+
+# --convert-to values accepted from the CLI / Explorer context menu
+_CLI_FORMATS: dict[str, OutputFormat] = {
+    "md": OutputFormat.MARKDOWN,
+    "markdown": OutputFormat.MARKDOWN,
+    "pdf": OutputFormat.PDF,
+    "docx": OutputFormat.DOCX,
+    "word": OutputFormat.DOCX,
+    "html": OutputFormat.HTML,
+}
 
 
 class MainWindow(QMainWindow):
@@ -64,14 +68,18 @@ class MainWindow(QMainWindow):
         ├─────────────────────────────────────┤
         │  Central stacked widget             │
         │   Page 0: Drop zone                 │
-        │   Page 1: File list + options       │
-        │   Page 2: Result view               │
+        │   Page 1: Queue — one row per file, │
+        │           live progress + results   │
         ├─────────────────────────────────────┤
         │  Recent files (collapsible)         │
         ├─────────────────────────────────────┤
         │  Footer — privacy note              │
         └─────────────────────────────────────┘
         [Settings panel overlaid on right side]
+
+    Files can arrive at any time — dropped on the window, picked in a dialog,
+    or forwarded from further Explorer launches — and all of them land in the
+    same queue. Requests made while a batch is running join that batch.
     """
 
     def __init__(self) -> None:
@@ -81,14 +89,18 @@ class MainWindow(QMainWindow):
         self._settings = self._settings_store.load()
         self._history = HistoryStore()
         self._worker: Optional[BatchConversionWorker] = None
-        self._pending_results: list[ConversionResult | ConversionError] = []
+        self._backlog: list[ConversionRequest] = []  # submitted while a worker was wrapping up
+        self._current_name = ""
+        self._counts = (0, 0)  # (completed, total) of the running batch
 
         self.setWindowTitle("Any2MD")
         self.resize(self._settings.window_width, self._settings.window_height)
-        self.setMinimumSize(720, 500)
+        self.setMinimumSize(760, 520)
+        self.setAcceptDrops(True)
 
         self._build_ui()
         self._setup_shortcuts()
+        self._file_list.apply_settings(self._settings)
 
         # Set window icon / favicon
         app_icon = get_app_icon()
@@ -114,27 +126,21 @@ class MainWindow(QMainWindow):
         main_layout.setSpacing(0)
 
         # Header
-        header = self._build_header()
-        main_layout.addWidget(header)
+        main_layout.addWidget(self._build_header())
 
         # Central stacked widget
         self._stack = QStackedWidget()
 
         # Page 0: Drop zone
-        drop_page = self._build_drop_page()
-        self._stack.addWidget(drop_page)
+        self._stack.addWidget(self._build_drop_page())
 
-        # Page 1: File list
+        # Page 1: Queue
         self._file_list = FileListWidget()
-        self._file_list.convert_requested.connect(self._start_conversion)
+        self._file_list.convert_requested.connect(self._submit)
+        self._file_list.cancel_requested.connect(self._cancel)
         self._file_list.clear_requested.connect(lambda: self._show_page(PAGE_DROP))
         self._file_list.add_more_requested.connect(self._open_add_more)
         self._stack.addWidget(self._file_list)
-
-        # Page 2: Result view
-        self._result_view = ResultView()
-        self._result_view.convert_more_requested.connect(self._on_convert_more)
-        self._stack.addWidget(self._result_view)
 
         self._stack.setCurrentIndex(PAGE_DROP)
         main_layout.addWidget(self._stack, 1)
@@ -144,8 +150,7 @@ class MainWindow(QMainWindow):
         main_layout.addWidget(self._recent_files, 0)
 
         # Footer
-        footer = self._build_footer()
-        main_layout.addWidget(footer)
+        main_layout.addWidget(self._build_footer())
 
         root_layout.addWidget(main_area)
 
@@ -231,6 +236,10 @@ class MainWindow(QMainWindow):
         layout.addWidget(privacy)
         layout.addStretch()
 
+        hint = QLabel("Ctrl+O  add files   ·   Ctrl+Enter  convert   ·   Esc  cancel")
+        hint.setObjectName("footerPrivacyNote")
+        layout.addWidget(hint)
+
         return footer
 
     # ──────────────────────────────────────────────────
@@ -238,132 +247,204 @@ class MainWindow(QMainWindow):
     # ──────────────────────────────────────────────────
 
     def _setup_shortcuts(self) -> None:
-        open_action = QAction("Open files", self)
-        open_action.setShortcut(QKeySequence("Ctrl+O"))
-        open_action.triggered.connect(self._drop_zone._open_file_dialog)
-        self.addAction(open_action)
+        def add(name: str, keys: list[str], slot) -> None:
+            action = QAction(name, self)
+            action.setShortcuts([QKeySequence(k) for k in keys])
+            action.triggered.connect(slot)
+            self.addAction(action)
 
-        settings_action = QAction("Settings", self)
-        settings_action.setShortcut(QKeySequence("Ctrl+,"))
-        settings_action.triggered.connect(self._toggle_settings)
-        self.addAction(settings_action)
-
-        esc_action = QAction("Escape", self)
-        esc_action.setShortcut(QKeySequence("Escape"))
-        esc_action.triggered.connect(self._on_escape)
-        self.addAction(esc_action)
+        add("Open files", ["Ctrl+O"], self._open_add_more)
+        add("Settings", ["Ctrl+,"], self._toggle_settings)
+        add("Convert", ["Ctrl+Return", "Ctrl+Enter"], self._convert_shortcut)
+        add("Escape", ["Escape"], self._on_escape)
 
     # ──────────────────────────────────────────────────
-    # Slot: Files dropped / selected
+    # Adding files
     # ──────────────────────────────────────────────────
 
     @pyqtSlot(list)
     def _on_files_dropped(self, paths: list[Path]) -> None:
-        if not paths:
-            return
-        self._file_list.add_files(paths)
-        self._show_page(PAGE_FILES)
+        self.add_files(paths)
 
     def _open_add_more(self) -> None:
-        """Open file dialog to add more files to existing queue."""
+        """Open file dialog to add more files to the queue."""
         self._drop_zone._open_file_dialog()
 
+    def add_files(
+        self,
+        paths: Iterable[Path | str],
+        convert_to: Optional[OutputFormat] = None,
+    ) -> list[str]:
+        """Add files (folders are expanded) to the queue; optionally convert them right away."""
+        files = collect_supported_files(Path(p) for p in paths)
+        if not files:
+            return []
+        ids = self._file_list.add_files(files, convert_to)
+        self._show_page(PAGE_FILES)
+        if convert_to is not None:
+            self._submit(self._file_list.build_requests(ids))
+        return ids
+
     # ──────────────────────────────────────────────────
-    # Slot: Conversion
+    # Window-wide drag and drop
+    # ──────────────────────────────────────────────────
+
+    def dragEnterEvent(self, event: QDragEnterEvent) -> None:
+        urls = event.mimeData().urls() if event.mimeData().hasUrls() else []
+        if collect_supported_files(Path(u.toLocalFile()) for u in urls if u.isLocalFile()):
+            event.acceptProposedAction()
+        else:
+            event.ignore()
+
+    def dropEvent(self, event: QDropEvent) -> None:
+        paths = [Path(u.toLocalFile()) for u in event.mimeData().urls() if u.isLocalFile()]
+        if self.add_files(paths):
+            event.acceptProposedAction()
+
+    # ──────────────────────────────────────────────────
+    # Conversion
     # ──────────────────────────────────────────────────
 
     @pyqtSlot(list)
-    def _start_conversion(self, requests: list[ConversionRequest]) -> None:
-        if not requests or self._worker is not None:
+    def _submit(self, requests: list[ConversionRequest]) -> None:
+        """Run requests — joining the active batch when there is one."""
+        if not requests:
             return
+        if self._worker is not None:
+            if not self._worker.enqueue(requests):
+                # The worker is wrapping up; start these once it has finished.
+                self._backlog.extend(requests)
+            return
+        self._start_worker(requests)
 
-        self._pending_results = []
+    def _start_worker(self, requests: list[ConversionRequest]) -> None:
         self._file_list.set_converting(True)
+        self._current_name = ""
 
         self._worker = BatchConversionWorker(self._engine, requests)
+        self._worker.file_started.connect(self._on_file_started)
         self._worker.file_progress.connect(self._on_file_progress)
         self._worker.file_finished.connect(self._on_file_finished)
         self._worker.file_error.connect(self._on_file_error)
-        self._worker.batch_finished.connect(self._on_batch_finished)
-        self._worker.finished.connect(self._cleanup_worker)
+        self._worker.batch_progress.connect(self._on_batch_progress)
+        self._worker.finished.connect(self._on_worker_finished)
+        self._counts = (0, len(requests))
+        self._file_list.set_batch_progress(0, len(requests))
+        self._update_title(0, len(requests))
         self._worker.start()
+
+    def _cancel(self) -> None:
+        if self._worker is not None:
+            self._worker.cancel()
+            self._file_list.show_cancelling()
+        for req in self._backlog:
+            if item := self._file_list.item(req.request_id):
+                item.mark_cancelled()
+        self._backlog.clear()
+
+    def _convert_shortcut(self) -> None:
+        if self._stack.currentIndex() == PAGE_FILES and self._file_list.has_pending():
+            self._submit(self._file_list.build_requests())
+
+    @pyqtSlot(str)
+    def _on_file_started(self, request_id: str) -> None:
+        self._file_list.mark_item_started(request_id)
+        item = self._file_list.item(request_id)
+        self._current_name = item.path.name if item else ""
+        completed, _ = self._counts
+        total = len(self._worker.pending_request_ids()) + completed + 1 if self._worker else 0
+        total = max(total, self._counts[1])
+        self._counts = (completed, total)
+        self._file_list.set_batch_progress(completed, total, self._current_name)
+        self._update_title(completed, total)
 
     @pyqtSlot(ConversionProgress)
     def _on_file_progress(self, progress: ConversionProgress) -> None:
         self._file_list.update_item_progress(progress)
 
+    @pyqtSlot(int, int)
+    def _on_batch_progress(self, completed: int, total: int) -> None:
+        self._counts = (completed, total)
+        self._file_list.set_batch_progress(completed, total, self._current_name)
+        self._update_title(completed, total)
+
     @pyqtSlot(ConversionResult)
     def _on_file_finished(self, result: ConversionResult) -> None:
-        self._file_list.mark_item_done(result.request.request_id)
-        self._pending_results.append(result)
+        self._file_list.mark_item_done(result.request.request_id, result)
 
-        # Record in history
         req = result.request
-        entry = HistoryEntry(
-            entry_id=str(uuid.uuid4()),
-            input_filename=req.input_path.name,
-            input_path=str(req.input_path),
-            output_path=str(result.output_path),
-            direction=f"{req.input_extension.upper().lstrip('.')} → {req.output_format.display_name}",
-            status="done",
-            timestamp=datetime.datetime.now().isoformat(),
+        self._history.add(
+            HistoryEntry(
+                entry_id=str(uuid.uuid4()),
+                input_filename=req.input_path.name,
+                input_path=str(req.input_path),
+                output_path=str(result.output_path),
+                direction=f"{req.input_extension.upper().lstrip('.')} → {req.output_format.display_name}",
+                status="done",
+                timestamp=datetime.datetime.now().isoformat(),
+            )
         )
-        self._history.add(entry)
+        self._recent_files.refresh()
 
     @pyqtSlot(ConversionError)
     def _on_file_error(self, error: ConversionError) -> None:
-        self._file_list.mark_item_error(error.request.request_id)
-        self._pending_results.append(error)
+        self._file_list.mark_item_error(error.request.request_id, error)
 
-        # Record error in history
         req = error.request
-        entry = HistoryEntry(
-            entry_id=str(uuid.uuid4()),
-            input_filename=req.input_path.name,
-            input_path=str(req.input_path),
-            output_path="",
-            direction=f"{req.input_extension.upper().lstrip('.')} → {req.output_format.display_name}",
-            status="error",
-            timestamp=datetime.datetime.now().isoformat(),
-            error_message=error.user_message,
+        self._history.add(
+            HistoryEntry(
+                entry_id=str(uuid.uuid4()),
+                input_filename=req.input_path.name,
+                input_path=str(req.input_path),
+                output_path="",
+                direction=f"{req.input_extension.upper().lstrip('.')} → {req.output_format.display_name}",
+                status="error",
+                timestamp=datetime.datetime.now().isoformat(),
+                error_message=error.user_message,
+            )
         )
-        self._history.add(entry)
-
-    @pyqtSlot(list)
-    def _on_batch_finished(self, results: list) -> None:
-        self._file_list.set_converting(False)
         self._recent_files.refresh()
-        self._result_view.set_results(self._pending_results)
-        self._show_page(PAGE_RESULT)
 
-    def _cleanup_worker(self) -> None:
-        if self._worker:
-            self._worker.deleteLater()
-            self._worker = None
+    def _on_worker_finished(self) -> None:
+        worker = self._worker
+        self._worker = None
+        if worker is not None:
+            if worker.is_cancelled:
+                self._file_list.mark_unfinished_cancelled()
+            worker.deleteLater()
+
+        if self._backlog:
+            backlog, self._backlog = self._backlog, []
+            self._start_worker(backlog)
+            return
+
+        self._file_list.set_converting(False)
+        self.setWindowTitle("Any2MD")
+        if not self.isActiveWindow():
+            QApplication.alert(self)  # flash the taskbar entry
+
+    def _update_title(self, completed: int, total: int) -> None:
+        self.setWindowTitle(f"Any2MD — converting {min(completed + 1, total)} of {total}")
 
     # ──────────────────────────────────────────────────
     # Slot: Navigation
     # ──────────────────────────────────────────────────
 
     def _show_page(self, index: int) -> None:
+        if index != self._stack.currentIndex():
+            # The queue needs the room; history is one click away when wanted.
+            self._recent_files.set_expanded(index == PAGE_DROP)
         self._stack.setCurrentIndex(index)
 
-    def _on_convert_more(self) -> None:
-        self._file_list.clear_all()
-        self._show_page(PAGE_DROP)
-
     def _on_escape(self) -> None:
-        """Escape: close settings if open, else go back a page."""
+        """Escape: close settings, else cancel a running batch, else clear the queue."""
         if self._settings_panel.isVisible():
             self._toggle_settings()
-        elif self._stack.currentIndex() == PAGE_RESULT:
-            self._on_convert_more()
+        elif self._worker is not None:
+            self._cancel()
         elif self._stack.currentIndex() == PAGE_FILES:
-            if self._worker:
-                self._worker.cancel()
-            else:
-                self._file_list.clear_all()
-                self._show_page(PAGE_DROP)
+            self._file_list.clear_all()
+            self._show_page(PAGE_DROP)
 
     # ──────────────────────────────────────────────────
     # Slot: Settings
@@ -381,11 +462,17 @@ class MainWindow(QMainWindow):
 
     @pyqtSlot(object)
     def _on_settings_changed(self, settings: AppSettings) -> None:
+        settings.window_width = self._settings.window_width
+        settings.window_height = self._settings.window_height
+        output_dir_changed = settings.default_output_dir != self._settings.default_output_dir
         self._settings = settings
         self._settings_store.save(settings)
         # Re-apply theme
         apply_theme(QApplication.instance(), settings.theme)
         self._update_header_icons()
+        self._file_list.apply_settings(settings)
+        if output_dir_changed and not settings.default_output_dir:
+            self._file_list.set_output_dir(None)
 
     def _cycle_theme(self) -> None:
         themes = ["light", "dark", "system"]
@@ -403,33 +490,20 @@ class MainWindow(QMainWindow):
 
     def handle_cli_args(self, files: list[str], convert_to: Optional[str] = None) -> None:
         """Handle files and conversion format passed via CLI / Explorer context menu."""
-        if not files:
-            return
+        target = _CLI_FORMATS.get(convert_to.lower()) if convert_to else None
+        self.add_files(files, target)
 
-        valid_paths = [Path(f).resolve() for f in files if Path(f).exists()]
-        if not valid_paths:
-            return
+    def handle_external_request(self, files: list[str], convert_to: Optional[str] = None) -> None:
+        """Files forwarded by another Any2MD launch (e.g. multi-select in Explorer)."""
+        self.handle_cli_args(files, convert_to)
+        self.bring_to_front()
 
-        self._file_list.add_files(valid_paths)
-        self._show_page(PAGE_FILES)
-
-        if convert_to:
-            format_map = {
-                "md": OutputFormat.MARKDOWN,
-                "markdown": OutputFormat.MARKDOWN,
-                "pdf": OutputFormat.PDF,
-                "docx": OutputFormat.DOCX,
-                "word": OutputFormat.DOCX,
-                "html": OutputFormat.HTML,
-            }
-            target_fmt = format_map.get(convert_to.lower())
-            if target_fmt:
-                idx = self._file_list._format_combo.findData(target_fmt)
-                if idx >= 0:
-                    self._file_list._format_combo.setCurrentIndex(idx)
-
-            # Trigger conversion immediately
-            self._file_list._on_convert()
+    def bring_to_front(self) -> None:
+        if self.isMinimized():
+            self.showNormal()
+        self.show()
+        self.raise_()
+        self.activateWindow()
 
     # ──────────────────────────────────────────────────
     # Window events
@@ -443,6 +517,6 @@ class MainWindow(QMainWindow):
 
         if self._worker and self._worker.isRunning():
             self._worker.cancel()
-            self._worker.wait(2000)
+            self._worker.wait(5000)
 
         super().closeEvent(event)
