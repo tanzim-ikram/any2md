@@ -30,3 +30,18 @@ def _isolated_user_state(tmp_path_factory, monkeypatch):
         real_init(self, data_dir or state_dir)
 
     monkeypatch.setattr(history.HistoryStore, "__init__", init)
+
+
+def test_default_output_is_same_as_source():
+    """Fresh settings convert next to the source file, and stale folder values are reset."""
+    from any2md.storage.settings import SettingsStore
+
+    store = SettingsStore()
+    assert store.load().default_output_dir == ""
+
+    # Simulate a stored folder from before the settings version was introduced
+    qs = store._qs
+    qs.setValue("default_output_dir", "C:/custom_out")
+    qs.remove("settings_version")
+    qs.sync()
+    assert SettingsStore().load().default_output_dir == ""

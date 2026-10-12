@@ -120,6 +120,10 @@ class SettingsPanel(QWidget):
         browse_btn.setFixedWidth(82)
         browse_btn.clicked.connect(self._pick_dir)
         dir_row.addWidget(browse_btn)
+        same_btn = QPushButton("Same as source")
+        same_btn.setToolTip("Save each converted file next to its source file")
+        same_btn.clicked.connect(self._use_source_folder)
+        dir_row.addWidget(same_btn)
         layout.addLayout(dir_row)
 
         # Start with Windows
@@ -209,6 +213,10 @@ class SettingsPanel(QWidget):
         if folder:
             self._out_dir_edit.setText(folder)
             self._on_change()
+
+    def _use_source_folder(self) -> None:
+        self._out_dir_edit.clear()
+        self._on_change()
 
     def _load(self, s: AppSettings) -> None:
         idx = self._theme_combo.findData(s.theme)

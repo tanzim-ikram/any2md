@@ -37,6 +37,12 @@ from any2md.ui.style.theme import apply_theme, load_stylesheet
 from any2md.ui.widgets.file_item import FileItemWidget, ItemState
 
 
+def tmp_path_for_settings() -> Path:
+    import tempfile
+
+    return Path(tempfile.gettempdir()) / "any2md-settings-test-out"
+
+
 def wait_for_batch(win: MainWindow, timeout_ms: int = 60000) -> None:
     """Block until the window's conversion worker(s) finish and their signals are delivered."""
     import time
@@ -309,10 +315,14 @@ class TestMainWindowSmoke:
         panel._startup_check.setChecked(True)
         assert self.win._settings.start_with_windows is True
 
-        # Test output directory setting
-        panel._out_dir_edit.setText("C:/custom_out")
+        # Test output directory setting, then return to the default
+        custom = str(tmp_path_for_settings())
+        panel._out_dir_edit.setText(custom)
         panel._on_change()
-        assert self.win._settings.default_output_dir == "C:/custom_out"
+        assert self.win._settings.default_output_dir == custom
+        panel._use_source_folder()
+        assert self.win._settings.default_output_dir == ""
+        assert self.win._file_list._output_dir is None
 
         # Toggle close via header button
         self.win._settings_btn.click()

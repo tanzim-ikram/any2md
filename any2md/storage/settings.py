@@ -25,6 +25,12 @@ class AppSettings:
     window_height: int = 640
 
 
+# Bump when a stored value must be reset once for every user.
+#   1 → 2: the default output folder was briefly written by the test suite
+#          (e.g. "C:/custom_out"); converted files go next to their source again.
+SETTINGS_VERSION = 2
+
+
 class SettingsStore:
     """Reads and writes AppSettings via QSettings (HKCU registry on Windows)."""
 
@@ -33,6 +39,10 @@ class SettingsStore:
 
     def load(self) -> AppSettings:
         s = AppSettings()
+        if self._qs.value("settings_version", 1, type=int) < 2:
+            self._qs.remove("default_output_dir")
+            self._qs.setValue("settings_version", SETTINGS_VERSION)
+            self._qs.sync()
         s.theme = self._qs.value("theme", s.theme, type=str)
         s.default_output_dir = self._qs.value("default_output_dir", s.default_output_dir, type=str)
         s.default_format = self._qs.value("default_format", s.default_format, type=str)
@@ -44,6 +54,7 @@ class SettingsStore:
         return s
 
     def save(self, settings: AppSettings) -> None:
+        self._qs.setValue("settings_version", SETTINGS_VERSION)
         self._qs.setValue("theme", settings.theme)
         self._qs.setValue("default_output_dir", settings.default_output_dir)
         self._qs.setValue("default_format", settings.default_format)
